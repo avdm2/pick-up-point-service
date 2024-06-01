@@ -3,7 +3,7 @@ package cli
 const (
 	help         = "help"
 	addOrder     = "add"
-	deleteOrder  = "delete"
+	returnOrder  = "return"
 	receiveOrder = "receive"
 	getOrders    = "orders"
 	createRefund = "refund"

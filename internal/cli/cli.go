@@ -16,14 +16,13 @@ const (
 )
 
 var (
-	errNotImplemented = errors.New("this command is not implemented")
-	errEmptyArgs      = errors.New("empty args")
-	errEmptyId        = errors.New("empty order or customer id")
+	errEmptyArgs   = errors.New("empty args")
+	errIncorrectId = errors.New("empty or non-positive order or customer id")
 )
 
 type Module interface {
 	Add(order models.Order) error
-	Delete(id models.ID) error
+	Return(id models.ID) error
 	Receive(ordersId []models.ID) ([]models.Order, error)
 	Orders(customerId models.ID, n int) ([]models.Order, error)
 	Refund(customerId models.ID, orderId models.ID) error
@@ -47,18 +46,17 @@ func NewCLI(d Deps) CLI {
 func (c CLI) Run() error {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		return errEmptyArgs
+		return fmt.Errorf("cli.Run() error: %w", errEmptyArgs)
 	}
 
 	com := args[0]
 	switch com {
 	case help:
-		c.help()
-		return nil
+		return c.help()
 	case addOrder:
 		return c.addOrder(args[1:])
-	case deleteOrder:
-		return c.deleteOrder(args[1:])
+	case returnOrder:
+		return c.returnOrder(args[1:])
 	case receiveOrder:
 		return c.receiveOrder(args[1:])
 	case getOrders:
@@ -67,9 +65,9 @@ func (c CLI) Run() error {
 		return c.createRefund(args[1:])
 	case getRefunds:
 		return c.getRefunds(args[1:])
+	default:
+		return c.unknownCommand()
 	}
-
-	return errNotImplemented
 }
 
 func commandList() []command {
@@ -83,7 +81,7 @@ func commandList() []command {
 			description: "Добавить заказ",
 		},
 		{
-			name:        deleteOrder,
+			name:        returnOrder,
 			description: "Удалить заказ",
 		},
 		{
@@ -105,13 +103,22 @@ func commandList() []command {
 	}
 }
 
-func (c CLI) help() {
+func (c CLI) help() error {
 	fmt.Println("Список доступных команд: ")
 
 	commands := commandList()
 	for _, com := range commands {
 		fmt.Printf("%s: %s\n", com.name, com.description)
 	}
+
+	return nil
+}
+
+func (c CLI) unknownCommand() error {
+	fmt.Println("Введенная команда не найдена. Проверьте количество аргументов или используйте другие команды " +
+		"(для вывода списка команд воспользуйтесь командой \"help\")")
+
+	return nil
 }
 
 func (c CLI) addOrder(args []string) error {
@@ -124,44 +131,44 @@ func (c CLI) addOrder(args []string) error {
 	fs.StringVar(&expirationTime, "expirationTime", "01-01-1990", "use --expirationTime=01-01-2024")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.addOrder error: %w", errFs)
 	}
 
-	if orderId == -1 || customerId == -1 {
-		return errEmptyId
+	if orderId <= 0 || customerId <= 0 {
+		return fmt.Errorf("cli.addOrder error: %w", errIncorrectId)
 	}
 
 	date, errDate := time.Parse(dateLayout, expirationTime)
 	if errDate != nil {
-		return errDate
+		return fmt.Errorf("cli.addOrder error: %w", errDate)
 	}
 
 	order := models.NewOrder(orderId, customerId, date)
 
 	if errAdd := c.Module.Add(*order); errAdd != nil {
-		return errAdd
+		return fmt.Errorf("cli.addOrder error: %w", errAdd)
 	}
 
 	fmt.Printf("Заказ %d добавлен!\n", orderId)
 	return nil
 }
 
-func (c CLI) deleteOrder(args []string) error {
+func (c CLI) returnOrder(args []string) error {
 	var orderId models.ID
 
-	fs := flag.NewFlagSet(deleteOrder, flag.ContinueOnError)
+	fs := flag.NewFlagSet(returnOrder, flag.ContinueOnError)
 	fs.Int64Var((*int64)(&orderId), "orderId", -1, "use --orderId=1")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.returnOrder error: %w", errFs)
 	}
 
-	if orderId == -1 {
-		return errEmptyId
+	if orderId <= 0 {
+		return fmt.Errorf("cli.returnOrder error: %w", errIncorrectId)
 	}
 
-	if errDelete := c.Module.Delete(orderId); errDelete != nil {
-		return errDelete
+	if errReturn := c.Module.Return(orderId); errReturn != nil {
+		return fmt.Errorf("cli.returnOrder error: %w", errReturn)
 	}
 
 	fmt.Printf("Заказ %d удален!\n", orderId)
@@ -175,17 +182,17 @@ func (c CLI) receiveOrder(args []string) error {
 	fs.StringVar(&ordersStr, "orders", "0", "use --orders=1,2,3,4,5")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.receiveOrder error: %w", errFs)
 	}
 
 	orderIds, errParseId := parseIDs(ordersStr)
 	if errParseId != nil {
-		return errParseId
+		return fmt.Errorf("cli.receiveOrder error: %w", errParseId)
 	}
 
 	orders, errReceiving := c.Module.Receive(orderIds)
 	if errReceiving != nil {
-		return errReceiving
+		return fmt.Errorf("cli.receiveOrder error: %w", errReceiving)
 	}
 
 	if len(orders) == 0 {
@@ -210,16 +217,16 @@ func (c CLI) getOrders(args []string) error {
 	fs.IntVar(&n, "n", -1, "use --n=1")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.getOrders error: %w", errFs)
 	}
 
-	if customerId == -1 {
-		return errEmptyId
+	if customerId <= 0 {
+		return fmt.Errorf("cli.getOrders error: %w", errIncorrectId)
 	}
 
 	orders, errGet := c.Module.Orders(customerId, n)
 	if errGet != nil {
-		return errGet
+		return fmt.Errorf("cli.getOrders error: %w", errGet)
 	}
 
 	if len(orders) == 0 {
@@ -243,15 +250,15 @@ func (c CLI) createRefund(args []string) error {
 	fs.Int64Var((*int64)(&customerId), "customerId", -1, "use --customerId=1")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.createRefund error: %w", errFs)
 	}
 
-	if orderId == -1 || customerId == -1 {
-		return errEmptyId
+	if orderId <= 0 || customerId <= 0 {
+		return fmt.Errorf("cli.createRefund error: %w", errIncorrectId)
 	}
 
 	if errRefund := c.Module.Refund(customerId, orderId); errRefund != nil {
-		return errRefund
+		return fmt.Errorf("cli.createRefund error: %w", errRefund)
 	}
 
 	fmt.Printf("Возврат на заказ %d создан!\n", orderId)
@@ -266,12 +273,12 @@ func (c CLI) getRefunds(args []string) error {
 	fs.IntVar(&limit, "limit", 0, "use --limit=1")
 
 	if errFs := fs.Parse(args); errFs != nil {
-		return errFs
+		return fmt.Errorf("cli.getRefunds error: %w", errFs)
 	}
 
 	orders, errGetRefunds := c.Module.Refunds(page, limit)
 	if errGetRefunds != nil {
-		return errGetRefunds
+		return fmt.Errorf("cli.getRefunds error: %w", errGetRefunds)
 	}
 
 	if len(orders) == 0 {
@@ -289,7 +296,7 @@ func (c CLI) getRefunds(args []string) error {
 
 func parseIDs(idsStr string) ([]models.ID, error) {
 	if idsStr == "" {
-		return nil, errEmptyId
+		return nil, errIncorrectId
 	}
 
 	strIds := strings.Split(idsStr, ",")

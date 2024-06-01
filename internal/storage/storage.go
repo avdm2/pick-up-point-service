@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"homework-1/internal/models"
 	"os"
+	"reflect"
 	"time"
 )
 
@@ -13,9 +14,10 @@ var (
 	errFileCreation    = errors.New("can not create a file")
 	errAlreadyExists   = errors.New("this order is already exists")
 	errWrongExpiration = errors.New("wrong expiration date")
-	errDelete          = errors.New("can not delete this order")
-	errRefund          = errors.New("can not refund this order")
+	errDelete          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
+	errRefund          = errors.New("can not refund this order. make sure it is yours and refund time (2 weeks) has not passed")
 	errPagination      = errors.New("page is out of range")
+	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or expiration time has passed")
 )
 
 type Storage struct {
@@ -28,7 +30,7 @@ func NewStorage(fileName string) (Storage, error) {
 	}
 
 	if err := createFile(fileName); err != nil {
-		return Storage{}, errFileCreation
+		return Storage{}, fmt.Errorf("storage.NewStorage error: %w", errFileCreation)
 	}
 
 	return Storage{fileName: fileName}, nil
@@ -37,7 +39,7 @@ func NewStorage(fileName string) (Storage, error) {
 func (s Storage) AddOrder(modelOrder models.Order) error {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return errJson
+		return fmt.Errorf("storage.AddOrder error: %w", errJson)
 	}
 
 	order := transform(modelOrder)
@@ -47,24 +49,19 @@ func (s Storage) AddOrder(modelOrder models.Order) error {
 	}
 
 	for _, v := range orders {
-		if v == order {
-			return errAlreadyExists
+		if reflect.DeepEqual(v, order) {
+			return fmt.Errorf("storage.AddOrder error: %w", errAlreadyExists)
 		}
 	}
 
 	orders = append(orders, order)
-	bWrite, errMarshal := json.MarshalIndent(orders, "  ", "  ")
-	if errMarshal != nil {
-		return errMarshal
-	}
-
-	return os.WriteFile(s.fileName, bWrite, 0666)
+	return s.writeJson(orders)
 }
 
-func (s Storage) DeleteOrder(orderId models.ID) error {
+func (s Storage) ReturnOrder(orderId models.ID) error {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return errJson
+		return fmt.Errorf("storage.ReturnOrder error: %w", errJson)
 	}
 
 	for i, v := range orders {
@@ -74,27 +71,18 @@ func (s Storage) DeleteOrder(orderId models.ID) error {
 				orders = append(orders[:i], orders[i+1:]...)
 				break
 			} else {
-				return errDelete
+				return fmt.Errorf("storage.ReturnOrder error: %w", errDelete)
 			}
 		}
 	}
 
-	bWrite, errMarshal := json.MarshalIndent(orders, "  ", "  ")
-	if errMarshal != nil {
-		return errMarshal
-	}
-
-	return os.WriteFile(s.fileName, bWrite, 0666)
+	return s.writeJson(orders)
 }
 
-// ReceiveOrders По условию требуется принимать только один параметр - список айди заказов. С другой стороны
-// в условии написано "Все ID заказов должны принадлежать только одному клиенту". Значит ли это, что параметров на самом
-// деле два (список заказов и айди клиента, который будет получать)? Или это просто ограничение на параметр айди заказа,
-// что у двух разных людей не может быть заказа с одним ID?
 func (s Storage) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return nil, errJson
+		return nil, fmt.Errorf("storage.ReceiveOrders error: %w", errJson)
 	}
 
 	ordersMap := make(map[id]orderRecord, len(orders))
@@ -102,14 +90,19 @@ func (s Storage) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 		ordersMap[v.OrderID] = v
 	}
 
+	// Предположим, что первый заказ из списка принадлежит какому-то клиенту. С этим клиентом будет сравнение
+	// следующих заказов.
+	customerId := ordersMap[id(ordersId[0])].CustomerID
 	var result []models.Order
 	for _, orderId := range ordersId {
-		if order, ok := ordersMap[id(orderId)]; ok && order.ExpirationTime.After(time.Now()) {
+		if order, ok := ordersMap[id(orderId)]; ok && order.ExpirationTime.After(time.Now()) && order.CustomerID == customerId {
 			// upd orderRecord
 			order.ReceivedTime = time.Now()
 			order.ReceivedByCustomer = true
 			ordersMap[id(orderId)] = order
 			result = append(result, order.toDomain())
+		} else {
+			return nil, fmt.Errorf("storage.ReceiveOrders error: %w", errReceive)
 		}
 	}
 
@@ -118,18 +111,13 @@ func (s Storage) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 		changedOrders = append(changedOrders, order)
 	}
 
-	bWrite, errMarshal := json.MarshalIndent(changedOrders, "  ", "  ")
-	if errMarshal != nil {
-		return nil, errMarshal
-	}
-
-	return result, os.WriteFile(s.fileName, bWrite, 0666)
+	return result, s.writeJson(changedOrders)
 }
 
 func (s Storage) GetOrders(customerId models.ID, n int) ([]models.Order, error) {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return nil, errJson
+		return nil, fmt.Errorf("storage.GetOrders error: %w", errJson)
 	}
 
 	var result []models.Order
@@ -148,7 +136,7 @@ func (s Storage) GetOrders(customerId models.ID, n int) ([]models.Order, error) 
 func (s Storage) CreateRefund(customerId models.ID, orderId models.ID) error {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return errJson
+		return fmt.Errorf("storage.CreateRefund error: %w", errJson)
 	}
 
 	ordersMap := make(map[id]orderRecord, len(orders))
@@ -156,13 +144,13 @@ func (s Storage) CreateRefund(customerId models.ID, orderId models.ID) error {
 		ordersMap[v.OrderID] = v
 	}
 
-	if toRefund, ok := ordersMap[id(orderId)]; ok && toRefund.CustomerID == id(customerId) {
-		if toRefund.ReceivedTime.Add(time.Hour * 24 * 2).Before(time.Now()) {
-			return errRefund
+	if toRefund, ok := ordersMap[id(orderId)]; ok && toRefund.CustomerID == id(customerId) &&
+		toRefund.ReceivedTime.Add(time.Hour*24*2).Before(time.Now()) {
 
-		}
 		toRefund.Refunded = true
 		ordersMap[id(orderId)] = toRefund
+	} else {
+		return fmt.Errorf("storage.CreateRefund error: %w", errRefund)
 	}
 
 	var changedOrders []orderRecord
@@ -170,18 +158,13 @@ func (s Storage) CreateRefund(customerId models.ID, orderId models.ID) error {
 		changedOrders = append(changedOrders, order)
 	}
 
-	bWrite, errMarshal := json.MarshalIndent(changedOrders, "  ", "  ")
-	if errMarshal != nil {
-		return errMarshal
-	}
-
-	return os.WriteFile(s.fileName, bWrite, 0666)
+	return s.writeJson(changedOrders)
 }
 
 func (s Storage) GetRefunds(page int, limit int) ([]models.Order, error) {
 	orders, errJson := readJson(s.fileName)
 	if errJson != nil {
-		return nil, errJson
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", errJson)
 	}
 
 	var refunds []models.Order
@@ -199,7 +182,7 @@ func (s Storage) GetRefunds(page int, limit int) ([]models.Order, error) {
 	end := start + limit
 
 	if start > len(refunds) {
-		return nil, errPagination
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", errPagination)
 	}
 
 	if end > len(refunds) {
@@ -210,9 +193,9 @@ func (s Storage) GetRefunds(page int, limit int) ([]models.Order, error) {
 }
 
 func createFile(fileName string) error {
-	f, err := os.Create(fileName)
-	if err != nil {
-		return err
+	f, errCreate := os.Create(fileName)
+	if errCreate != nil {
+		return fmt.Errorf("storage.createFile error: %w", errCreate)
 	}
 
 	defer func(f *os.File) {
@@ -228,7 +211,7 @@ func createFile(fileName string) error {
 func readJson(fileName string) ([]orderRecord, error) {
 	b, errReadFile := os.ReadFile(fileName)
 	if errReadFile != nil {
-		return nil, errReadFile
+		return nil, fmt.Errorf("storage.readJson error: %w", errReadFile)
 	}
 
 	if len(b) == 0 {
@@ -237,8 +220,22 @@ func readJson(fileName string) ([]orderRecord, error) {
 
 	var orders []orderRecord
 	if errUnmarshal := json.Unmarshal(b, &orders); errUnmarshal != nil {
-		return nil, errUnmarshal
+		return nil, fmt.Errorf("storage.readJson error: %w", errUnmarshal)
 	}
 
 	return orders, nil
+}
+
+func (s Storage) writeJson(orders []orderRecord) error {
+	bWrite, errMarshal := json.MarshalIndent(orders, "  ", "  ")
+	if errMarshal != nil {
+		return fmt.Errorf("storage.writeJson error: %w", errMarshal)
+	}
+
+	errWriting := os.WriteFile(s.fileName, bWrite, 0666)
+	if errWriting != nil {
+		return fmt.Errorf("storage.writeJson error: %w", errWriting)
+	}
+
+	return nil
 }
