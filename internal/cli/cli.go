@@ -21,12 +21,12 @@ var (
 )
 
 type Module interface {
-	Add(order models.Order) error
-	Return(id models.ID) error
-	Receive(ordersId []models.ID) ([]models.Order, error)
-	Orders(customerId models.ID, n int) ([]models.Order, error)
-	Refund(customerId models.ID, orderId models.ID) error
-	Refunds(page int, limit int) ([]models.Order, error)
+	AddOrder(order models.Order) error
+	ReturnOrder(id models.ID) error
+	ReceiveOrders(ordersId []models.ID) ([]models.Order, error)
+	GetOrders(customerId models.ID, n int) ([]models.Order, error)
+	RefundOrder(customerId models.ID, orderId models.ID) error
+	GetRefunds(page int, limit int) ([]models.Order, error)
 }
 
 type Deps struct {
@@ -145,7 +145,7 @@ func (c CLI) addOrder(args []string) error {
 
 	order := models.NewOrder(orderId, customerId, date)
 
-	if errAdd := c.Module.Add(*order); errAdd != nil {
+	if errAdd := c.Module.AddOrder(*order); errAdd != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errAdd)
 	}
 
@@ -167,7 +167,7 @@ func (c CLI) returnOrder(args []string) error {
 		return fmt.Errorf("cli.returnOrder error: %w", errIncorrectId)
 	}
 
-	if errReturn := c.Module.Return(orderId); errReturn != nil {
+	if errReturn := c.Module.ReturnOrder(orderId); errReturn != nil {
 		return fmt.Errorf("cli.returnOrder error: %w", errReturn)
 	}
 
@@ -190,7 +190,7 @@ func (c CLI) receiveOrder(args []string) error {
 		return fmt.Errorf("cli.receiveOrder error: %w", errParseId)
 	}
 
-	orders, errReceiving := c.Module.Receive(orderIds)
+	orders, errReceiving := c.Module.ReceiveOrders(orderIds)
 	if errReceiving != nil {
 		return fmt.Errorf("cli.receiveOrder error: %w", errReceiving)
 	}
@@ -224,7 +224,7 @@ func (c CLI) getOrders(args []string) error {
 		return fmt.Errorf("cli.getOrders error: %w", errIncorrectId)
 	}
 
-	orders, errGet := c.Module.Orders(customerId, n)
+	orders, errGet := c.Module.GetOrders(customerId, n)
 	if errGet != nil {
 		return fmt.Errorf("cli.getOrders error: %w", errGet)
 	}
@@ -257,7 +257,7 @@ func (c CLI) createRefund(args []string) error {
 		return fmt.Errorf("cli.createRefund error: %w", errIncorrectId)
 	}
 
-	if errRefund := c.Module.Refund(customerId, orderId); errRefund != nil {
+	if errRefund := c.Module.RefundOrder(customerId, orderId); errRefund != nil {
 		return fmt.Errorf("cli.createRefund error: %w", errRefund)
 	}
 
@@ -276,7 +276,7 @@ func (c CLI) getRefunds(args []string) error {
 		return fmt.Errorf("cli.getRefunds error: %w", errFs)
 	}
 
-	orders, errGetRefunds := c.Module.Refunds(page, limit)
+	orders, errGetRefunds := c.Module.GetRefunds(page, limit)
 	if errGetRefunds != nil {
 		return fmt.Errorf("cli.getRefunds error: %w", errGetRefunds)
 	}
