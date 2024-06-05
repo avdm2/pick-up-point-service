@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"homework-1/internal/models"
 	"homework-1/internal/storage"
-	"reflect"
 	"time"
 )
 
 var (
 	errWrongExpiration = errors.New("wrong expiration date")
-	errAlreadyExists   = errors.New("this order is already exists")
+	errAlreadyExists   = errors.New("order with this id is already exists")
 	errDelete          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
 	errRefund          = errors.New("can not refund this order. make sure it is yours and refund time (2 weeks) has not passed")
 	errPagination      = errors.New("page is out of range")
@@ -41,7 +40,7 @@ func (m Module) AddOrder(order models.Order) error {
 	}
 
 	for _, v := range orders {
-		if reflect.DeepEqual(v, order) {
+		if v.OrderID == order.CustomerID {
 			return fmt.Errorf("module.AddOrder error: %w", errAlreadyExists)
 		}
 	}
