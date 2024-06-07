@@ -28,6 +28,4 @@ func main() {
 		fmt.Printf("CLI error. %s\n", errCLI)
 		os.Exit(1)
 	}
-
-	fmt.Printf("end")
 }

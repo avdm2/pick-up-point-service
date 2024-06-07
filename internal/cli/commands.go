@@ -8,6 +8,7 @@ const (
 	getOrders    = "orders"
 	createRefund = "refund"
 	getRefunds   = "refunds"
+	exit         = "exit"
 )
 
 type command struct {

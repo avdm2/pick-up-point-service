@@ -12,7 +12,8 @@ var (
 	errWrongExpiration = errors.New("wrong expiration date")
 	errAlreadyExists   = errors.New("order with this id is already exists")
 	errDelete          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
-	errRefund          = errors.New("can not refund this order. make sure it is yours and refund time (2 weeks) has not passed")
+	errWrongOrder      = errors.New("wrong order id")
+	errRefund          = errors.New("can not refund this order. make sure it is yours and refund time (2 days) has not passed")
 	errPagination      = errors.New("page is out of range")
 	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or expiration time has passed")
 )
@@ -56,16 +57,22 @@ func (m Module) ReturnOrder(id models.ID) error {
 		return fmt.Errorf("module.Return error: %w", errJson)
 	}
 
+	returned := false
 	for i, v := range orders {
 		if v.OrderID == id {
 			if v.ReceivedByCustomer || v.ExpirationTime.Before(time.Now()) {
 				// Удаление (добавление всех заказов до данного индекса и после)
 				orders = append(orders[:i], orders[i+1:]...)
+				returned = true
 				break
 			} else {
 				return fmt.Errorf("storage.ReturnOrder error: %w", errDelete)
 			}
 		}
+	}
+
+	if !returned {
+		return errWrongOrder
 	}
 
 	return m.Storage.WriteJson(orders)
@@ -139,7 +146,8 @@ func (m Module) RefundOrder(customerId models.ID, orderId models.ID) error {
 	}
 
 	if toRefund, ok := ordersMap[orderId]; ok && toRefund.CustomerID == customerId &&
-		toRefund.ReceivedTime.Add(time.Hour*24*2).Before(time.Now()) {
+		toRefund.ReceivedByCustomer && !toRefund.Refunded &&
+		toRefund.ReceivedTime.Add(time.Hour*24*2).After(time.Now()) {
 
 		toRefund.Refunded = true
 		ordersMap[orderId] = toRefund
