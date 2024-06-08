@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -35,18 +36,19 @@ type Deps struct {
 
 type CLI struct {
 	Deps
+	mu sync.Mutex
 }
 
-func NewCLI(d Deps) CLI {
-	return CLI{
+func NewCLI(d Deps) *CLI {
+	return &CLI{
 		Deps: d,
 	}
 }
 
-func (c CLI) Run() error {
+func (c *CLI) Run() error {
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Print("Введите команду: ")
+		fmt.Println("[>>] Введите команду:")
 		cmd, errRead := reader.ReadString('\n')
 		if errRead != nil {
 			return fmt.Errorf("cli.Run error: %w", errRead)
@@ -54,9 +56,12 @@ func (c CLI) Run() error {
 
 		cmd = strings.TrimRight(cmd, "\n")
 
-		if errCmd := c.handleCommand(cmd); errCmd != nil {
-			fmt.Printf("cli.Run error: %s\n", errCmd)
-		}
+		go func(command string) {
+			fmt.Printf("[*] Обработка команды [%s]\n", command)
+			if errCmd := c.handleCommand(command); errCmd != nil {
+				fmt.Printf("cli.Run error: %s\n", errCmd)
+			}
+		}(cmd)
 
 		if cmd == "exit" {
 			break
@@ -66,7 +71,13 @@ func (c CLI) Run() error {
 	return nil
 }
 
-func (c CLI) handleCommand(command string) error {
+func (c *CLI) handleCommand(command string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Имитация длительной работы
+	time.Sleep(10 * time.Second)
+
 	arguments := strings.Split(command, " ")
 	switch arguments[0] {
 	case help:
@@ -83,14 +94,12 @@ func (c CLI) handleCommand(command string) error {
 		return c.createRefund(arguments[1:])
 	case getRefunds:
 		return c.getRefunds(arguments[1:])
-	case exit:
-		return c.exit()
 	default:
 		return c.unknownCommand()
 	}
 }
 
-func (c CLI) help() error {
+func (c *CLI) help() error {
 	fmt.Println("Список доступных команд: ")
 
 	commands := commandList()
@@ -101,7 +110,7 @@ func (c CLI) help() error {
 	return nil
 }
 
-func (c CLI) unknownCommand() error {
+func (c *CLI) unknownCommand() error {
 	fmt.Println("Введенная команда не найдена. Проверьте количество аргументов или используйте другие команды " +
 		"(для вывода списка команд воспользуйтесь командой \"help\")")
 
@@ -109,7 +118,7 @@ func (c CLI) unknownCommand() error {
 }
 
 // addOrder --orderId=1 --customerId=1 --expirationTime=01-01-2024
-func (c CLI) addOrder(args []string) error {
+func (c *CLI) addOrder(args []string) error {
 	if len(args) != 3 {
 		return errIncorrectArgAmount
 	}
@@ -149,7 +158,7 @@ func (c CLI) addOrder(args []string) error {
 }
 
 // returnOrder --orderId=1
-func (c CLI) returnOrder(args []string) error {
+func (c *CLI) returnOrder(args []string) error {
 	if len(args) != 1 {
 		return errIncorrectArgAmount
 	}
@@ -174,7 +183,7 @@ func (c CLI) returnOrder(args []string) error {
 }
 
 // receiveOrder --orders=1,2,3,4,5
-func (c CLI) receiveOrder(args []string) error {
+func (c *CLI) receiveOrder(args []string) error {
 	if len(args) != 1 {
 		return errIncorrectArgAmount
 	}
@@ -203,7 +212,7 @@ func (c CLI) receiveOrder(args []string) error {
 }
 
 // getOrders --customerId=1 --n=1
-func (c CLI) getOrders(args []string) error {
+func (c *CLI) getOrders(args []string) error {
 	if len(args) != 2 {
 		return errIncorrectArgAmount
 	}
@@ -243,7 +252,7 @@ func (c CLI) getOrders(args []string) error {
 }
 
 // createRefund --orderId=1 --customerId=1
-func (c CLI) createRefund(args []string) error {
+func (c *CLI) createRefund(args []string) error {
 	if len(args) != 2 {
 		return errIncorrectArgAmount
 	}
@@ -274,7 +283,7 @@ func (c CLI) createRefund(args []string) error {
 }
 
 // getRefunds --page=1 --limit=1
-func (c CLI) getRefunds(args []string) error {
+func (c *CLI) getRefunds(args []string) error {
 	if len(args) != 2 {
 		return errIncorrectArgAmount
 	}
@@ -304,11 +313,6 @@ func (c CLI) getRefunds(args []string) error {
 		fmt.Println(order)
 	}
 
-	return nil
-}
-
-func (c CLI) exit() error {
-	fmt.Println("Выход из программы")
 	return nil
 }
 

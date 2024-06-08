@@ -13,9 +13,9 @@ var (
 	errAlreadyExists   = errors.New("order with this id is already exists")
 	errDelete          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
 	errWrongOrder      = errors.New("wrong order id")
-	errRefund          = errors.New("can not refund this order. make sure it is yours and refund time (2 days) has not passed")
+	errRefund          = errors.New("can not refund this order. make sure it is yours, you received it and refund time (2 days) has not passed")
 	errPagination      = errors.New("page is out of range")
-	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or expiration time has passed")
+	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or already received or expiration time has passed")
 )
 
 type Deps struct {
@@ -94,7 +94,9 @@ func (m Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 	customerId := ordersMap[ordersId[0]].CustomerID
 	var result []models.Order
 	for _, orderId := range ordersId {
-		if order, ok := ordersMap[orderId]; ok && order.ExpirationTime.After(time.Now()) && order.CustomerID == customerId {
+		if order, ok := ordersMap[orderId]; ok && order.ExpirationTime.After(time.Now()) &&
+			!order.ReceivedByCustomer &&
+			order.CustomerID == customerId {
 			// upd orderRecord
 			order.ReceivedTime = time.Now()
 			order.ReceivedByCustomer = true
