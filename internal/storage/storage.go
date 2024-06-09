@@ -6,29 +6,60 @@ import (
 	"fmt"
 	"homework-1/internal/models"
 	"os"
+	"sync"
 )
 
 var (
 	errFileCreation = errors.New("can not create a file")
+	errWrongOrder   = errors.New("wrong order id")
 )
 
 type Storage struct {
 	fileName string
+	mu       sync.Mutex
 }
 
-func NewStorage(fileName string) (Storage, error) {
+func NewStorage(fileName string) (*Storage, error) {
 	if _, err := os.Stat(fileName); err == nil {
-		return Storage{fileName: fileName}, nil
+		return &Storage{fileName: fileName}, nil
 	}
 
 	if err := createFile(fileName); err != nil {
-		return Storage{}, fmt.Errorf("storage.NewStorage error: %w", errFileCreation)
+		return &Storage{}, fmt.Errorf("storage.NewStorage error: %w", errFileCreation)
 	}
 
-	return Storage{fileName: fileName}, nil
+	return &Storage{fileName: fileName}, nil
 }
 
-func (s Storage) ReadJson() ([]models.Order, error) {
+func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", err)
+	}
+
+	for _, order := range orders {
+		if order.OrderID == orderId {
+			return order, nil
+		}
+	}
+
+	return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errWrongOrder)
+}
+
+func (s *Storage) AddOrder(order models.Order) error {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return fmt.Errorf("storage.AddOrder error: %w", err)
+	}
+
+	orders = append(orders, order)
+	return s.WriteJson(orders)
+}
+
+func (s *Storage) ReadJson() ([]models.Order, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	b, errReadFile := os.ReadFile(s.fileName)
 	if errReadFile != nil {
 		return nil, fmt.Errorf("storage.readJson error: %w", errReadFile)
@@ -51,7 +82,10 @@ func (s Storage) ReadJson() ([]models.Order, error) {
 	return orders, nil
 }
 
-func (s Storage) WriteJson(orders []models.Order) error {
+func (s *Storage) WriteJson(orders []models.Order) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	var orderRecords []orderRecord
 	for _, order := range orders {
 		orderRecords = append(orderRecords, transform(order))

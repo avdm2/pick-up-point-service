@@ -36,16 +36,27 @@ type Deps struct {
 
 type CLI struct {
 	Deps
-	mu sync.Mutex
+	wg      sync.WaitGroup
+	tasks   chan string
+	workers int
 }
 
 func NewCLI(d Deps) *CLI {
 	return &CLI{
-		Deps: d,
+		Deps:    d,
+		tasks:   make(chan string),
+		workers: 2,
 	}
 }
 
 func (c *CLI) Run() error {
+
+	for i := 0; i < c.workers; i++ {
+		c.wg.Add(1)
+		fmt.Printf("[* w%d *] Запуск воркера\n", i)
+		go c.worker(i)
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Println("[>>] Введите команду:")
@@ -55,28 +66,33 @@ func (c *CLI) Run() error {
 		}
 
 		cmd = strings.TrimRight(cmd, "\n")
-
-		go func(command string) {
-			fmt.Printf("[*] Обработка команды [%s]\n", command)
-			if errCmd := c.handleCommand(command); errCmd != nil {
-				fmt.Printf("cli.Run error: %s\n", errCmd)
-			}
-		}(cmd)
-
 		if cmd == "exit" {
 			break
 		}
+
+		c.tasks <- cmd
 	}
 
+	close(c.tasks)
+	c.wg.Wait()
 	return nil
 }
 
+func (c *CLI) worker(id int) {
+	defer c.wg.Done()
+	for cmd := range c.tasks {
+		fmt.Printf("[* w%d *] Обработка команды [%s]\n", id, cmd)
+		if errCmd := c.handleCommand(cmd); errCmd != nil {
+			fmt.Printf("cli.Run error: %s\n", errCmd)
+		}
+		fmt.Printf("[* w%d *] Команда [%s] обработана\n", id, cmd)
+	}
+}
+
 func (c *CLI) handleCommand(command string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	// Имитация длительной работы
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	arguments := strings.Split(command, " ")
 	switch arguments[0] {

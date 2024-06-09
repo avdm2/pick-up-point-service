@@ -19,18 +19,18 @@ var (
 )
 
 type Deps struct {
-	Storage storage.Storage
+	Storage *storage.Storage
 }
 
 type Module struct {
 	Deps
 }
 
-func NewModule(d Deps) Module {
-	return Module{Deps: d}
+func NewModule(d Deps) *Module {
+	return &Module{Deps: d}
 }
 
-func (m Module) AddOrder(order models.Order) error {
+func (m *Module) AddOrder(order models.Order) error {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return fmt.Errorf("module.AddOrder error: %w", errJson)
@@ -51,7 +51,7 @@ func (m Module) AddOrder(order models.Order) error {
 
 }
 
-func (m Module) ReturnOrder(id models.ID) error {
+func (m *Module) ReturnOrder(id models.ID) error {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return fmt.Errorf("module.Return error: %w", errJson)
@@ -78,7 +78,7 @@ func (m Module) ReturnOrder(id models.ID) error {
 	return m.Storage.WriteJson(orders)
 }
 
-func (m Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
+func (m *Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return nil, fmt.Errorf("module.ReceiveOrders error: %w", errJson)
@@ -116,7 +116,7 @@ func (m Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
 
 }
 
-func (m Module) GetOrders(customerId models.ID, n int) ([]models.Order, error) {
+func (m *Module) GetOrders(customerId models.ID, n int) ([]models.Order, error) {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return nil, fmt.Errorf("storage.GetOrders error: %w", errJson)
@@ -136,7 +136,7 @@ func (m Module) GetOrders(customerId models.ID, n int) ([]models.Order, error) {
 
 }
 
-func (m Module) RefundOrder(customerId models.ID, orderId models.ID) error {
+func (m *Module) RefundOrder(customerId models.ID, orderId models.ID) error {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return fmt.Errorf("storage.CreateRefund error: %w", errJson)
@@ -166,7 +166,7 @@ func (m Module) RefundOrder(customerId models.ID, orderId models.ID) error {
 
 }
 
-func (m Module) GetRefunds(page int, limit int) ([]models.Order, error) {
+func (m *Module) GetRefunds(page int, limit int) ([]models.Order, error) {
 	orders, errJson := m.Storage.ReadJson()
 	if errJson != nil {
 		return nil, fmt.Errorf("storage.GetRefunds error: %w", errJson)
