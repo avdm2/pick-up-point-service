@@ -10,9 +10,7 @@ import (
 
 var (
 	errWrongExpiration = errors.New("wrong expiration date")
-	errAlreadyExists   = errors.New("order with this id is already exists")
-	errDelete          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
-	errWrongOrder      = errors.New("wrong order id")
+	errReturn          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
 	errRefund          = errors.New("can not refund this order. make sure it is yours, you received it and refund time (2 days) has not passed")
 	errPagination      = errors.New("page is out of range")
 	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or already received or expiration time has passed")
@@ -30,153 +28,94 @@ func NewModule(d Deps) *Module {
 	return &Module{Deps: d}
 }
 
-func (m *Module) AddOrder(order models.Order) error {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return fmt.Errorf("module.AddOrder error: %w", errJson)
-	}
-
-	if order.ExpirationTime.Before(time.Now()) {
+func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time) error {
+	if expirationDate.Before(time.Now()) {
 		return errWrongExpiration
 	}
 
-	for _, v := range orders {
-		if v.OrderID == order.CustomerID {
-			return fmt.Errorf("module.AddOrder error: %w", errAlreadyExists)
-		}
+	_, errGetOrder := m.Storage.GetOrder(orderId)
+	if errGetOrder != nil {
+		return fmt.Errorf("module.AddOrder error: %w", errGetOrder)
 	}
 
-	orders = append(orders, order)
-	return m.Storage.WriteJson(orders)
-
+	order := models.NewOrder(orderId, customerId, expirationDate)
+	return m.Storage.AddOrder(*order)
 }
 
 func (m *Module) ReturnOrder(id models.ID) error {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return fmt.Errorf("module.Return error: %w", errJson)
+	order, errGet := m.Storage.GetOrder(id)
+	if errGet != nil {
+		return fmt.Errorf("storage.ReturnOrder error: %w", errGet)
 	}
 
-	returned := false
-	for i, v := range orders {
-		if v.OrderID == id {
-			if v.ReceivedByCustomer || v.ExpirationTime.Before(time.Now()) {
-				// Удаление (добавление всех заказов до данного индекса и после)
-				orders = append(orders[:i], orders[i+1:]...)
-				returned = true
-				break
-			} else {
-				return fmt.Errorf("storage.ReturnOrder error: %w", errDelete)
-			}
-		}
+	if order.ReceivedByCustomer && order.ExpirationTime.Before(time.Now()) {
+		return m.Storage.ReturnOrder(id)
 	}
 
-	if !returned {
-		return errWrongOrder
-	}
-
-	return m.Storage.WriteJson(orders)
+	return fmt.Errorf("storage.ReturnOrder error: %w", errReturn)
 }
 
 func (m *Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return nil, fmt.Errorf("module.ReceiveOrders error: %w", errJson)
+	order, errGetOrder := m.Storage.GetOrder(ordersId[0])
+	if errGetOrder != nil {
+		return nil, fmt.Errorf("storage.ReceiveOrders error: %w", errGetOrder)
 	}
 
-	ordersMap := make(map[models.ID]models.Order, len(orders))
-	for _, v := range orders {
-		ordersMap[v.OrderID] = v
-	}
-
-	// Предположим, что первый заказ из списка принадлежит какому-то клиенту. С этим клиентом будет сравнение
-	// следующих заказов.
-	customerId := ordersMap[ordersId[0]].CustomerID
-	var result []models.Order
+	customerId := order.CustomerID
+	var received []models.Order
 	for _, orderId := range ordersId {
-		if order, ok := ordersMap[orderId]; ok && order.ExpirationTime.After(time.Now()) &&
-			!order.ReceivedByCustomer &&
-			order.CustomerID == customerId {
-			// upd orderRecord
-			order.ReceivedTime = time.Now()
-			order.ReceivedByCustomer = true
-			ordersMap[orderId] = order
-			result = append(result, order)
-		} else {
+		if toReceive, errGet := m.Storage.GetOrder(orderId); errGet != nil || toReceive.ExpirationTime.Before(time.Now()) ||
+			toReceive.ReceivedByCustomer || toReceive.CustomerID != customerId {
 			return nil, fmt.Errorf("storage.ReceiveOrders error: %w", errReceive)
 		}
+
+		receivedOrder, errRec := m.Storage.ReceiveOrder(orderId)
+		if errRec != nil {
+			return nil, fmt.Errorf("storage.ReceiveOrders error: %w", errRec)
+		}
+
+		received = append(received, receivedOrder)
 	}
 
-	var changedOrders []models.Order
-	for _, order := range ordersMap {
-		changedOrders = append(changedOrders, order)
-	}
-
-	return result, m.Storage.WriteJson(changedOrders)
-
+	return received, nil
 }
 
 func (m *Module) GetOrders(customerId models.ID, n int) ([]models.Order, error) {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return nil, fmt.Errorf("storage.GetOrders error: %w", errJson)
+	orders, errGet := m.Storage.GetCustomersOrders(customerId)
+	if errGet != nil {
+		return nil, fmt.Errorf("storage.GetOrders error: %w", errGet)
 	}
 
-	var result []models.Order
-	for _, order := range orders {
-		if order.CustomerID == customerId {
-			result = append(result, order)
-			if n > 0 && len(result) >= n {
-				break
-			}
-		}
+	if n <= 0 {
+		return orders, nil
 	}
 
-	return result, nil
+	if n > len(orders) {
+		n = len(orders)
+	}
+
+	return orders[:n], nil
 
 }
 
 func (m *Module) RefundOrder(customerId models.ID, orderId models.ID) error {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return fmt.Errorf("storage.CreateRefund error: %w", errJson)
+	order, errGet := m.Storage.GetOrder(orderId)
+	if errGet != nil {
+		return fmt.Errorf("storage.ReturnOrder error: %w", errGet)
 	}
 
-	ordersMap := make(map[models.ID]models.Order, len(orders))
-	for _, v := range orders {
-		ordersMap[v.OrderID] = v
-	}
-
-	if toRefund, ok := ordersMap[orderId]; ok && toRefund.CustomerID == customerId &&
-		toRefund.ReceivedByCustomer && !toRefund.Refunded &&
-		toRefund.ReceivedTime.Add(time.Hour*24*2).After(time.Now()) {
-
-		toRefund.Refunded = true
-		ordersMap[orderId] = toRefund
-	} else {
+	if order.CustomerID != customerId || !order.ReceivedByCustomer || order.Refunded || order.ReceivedTime.Add(time.Hour*24*2).Before(time.Now()) {
 		return fmt.Errorf("storage.CreateRefund error: %w", errRefund)
 	}
 
-	var changedOrders []models.Order
-	for _, order := range ordersMap {
-		changedOrders = append(changedOrders, order)
-	}
-
-	return m.Storage.WriteJson(changedOrders)
-
+	order.Refunded = true
+	return m.Storage.ChangeOrder(order)
 }
 
 func (m *Module) GetRefunds(page int, limit int) ([]models.Order, error) {
-	orders, errJson := m.Storage.ReadJson()
-	if errJson != nil {
-		return nil, fmt.Errorf("storage.GetRefunds error: %w", errJson)
-	}
-
-	var refunds []models.Order
-	for _, v := range orders {
-		if v.Refunded {
-			refunds = append(refunds, v)
-		}
+	refunds, errGet := m.Storage.GetRefunds()
+	if errGet != nil {
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", errGet)
 	}
 
 	if limit <= 0 {
@@ -195,5 +134,4 @@ func (m *Module) GetRefunds(page int, limit int) ([]models.Order, error) {
 	}
 
 	return refunds[start:end], nil
-
 }

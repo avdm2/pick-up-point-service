@@ -7,11 +7,12 @@ import (
 	"homework-1/internal/models"
 	"os"
 	"sync"
+	"time"
 )
 
 var (
-	errFileCreation = errors.New("can not create a file")
-	errWrongOrder   = errors.New("wrong order id")
+	errFileCreation  = errors.New("can not create a file")
+	errOrderNotFound = errors.New("order not found")
 )
 
 type Storage struct {
@@ -31,21 +32,6 @@ func NewStorage(fileName string) (*Storage, error) {
 	return &Storage{fileName: fileName}, nil
 }
 
-func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
-	orders, err := s.ReadJson()
-	if err != nil {
-		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", err)
-	}
-
-	for _, order := range orders {
-		if order.OrderID == orderId {
-			return order, nil
-		}
-	}
-
-	return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errWrongOrder)
-}
-
 func (s *Storage) AddOrder(order models.Order) error {
 	orders, err := s.ReadJson()
 	if err != nil {
@@ -54,6 +40,104 @@ func (s *Storage) AddOrder(order models.Order) error {
 
 	orders = append(orders, order)
 	return s.WriteJson(orders)
+}
+
+func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
+	orders, errJson := s.ReadJson()
+	if errJson != nil {
+		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errJson)
+	}
+
+	for _, order := range orders {
+		if order.OrderID == orderId {
+			return order, nil
+		}
+	}
+
+	return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errOrderNotFound)
+}
+
+func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, error) {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", err)
+	}
+
+	var customersOrders []models.Order
+	for _, order := range orders {
+		if order.CustomerID == customerId {
+			customersOrders = append(customersOrders, order)
+		}
+	}
+
+	return customersOrders, nil
+
+}
+
+func (s *Storage) GetRefunds() ([]models.Order, error) {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", err)
+	}
+
+	var refunds []models.Order
+	for _, order := range orders {
+		if order.Refunded {
+			refunds = append(refunds, order)
+		}
+	}
+
+	return refunds, nil
+}
+
+func (s *Storage) ChangeOrder(order models.Order) error {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return fmt.Errorf("storage.ChangeOrder error: %w", err)
+	}
+
+	for i, v := range orders {
+		if v.OrderID == order.OrderID {
+			orders[i] = order
+			return s.WriteJson(orders)
+		}
+	}
+
+	return fmt.Errorf("storage.ChangeOrder error: %w", errOrderNotFound)
+}
+
+func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", err)
+	}
+
+	for i, v := range orders {
+		if v.OrderID == orderId {
+			orders[i].ReceivedTime = time.Now()
+			orders[i].ReceivedByCustomer = true
+			return orders[i], s.WriteJson(orders)
+		}
+	}
+
+	return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errOrderNotFound)
+}
+
+func (s *Storage) ReturnOrder(orderId models.ID) error {
+	orders, err := s.ReadJson()
+	if err != nil {
+		return fmt.Errorf("storage.ReturnOrder error: %w", err)
+	}
+
+	for i, v := range orders {
+		if v.OrderID == orderId {
+			orders = append(orders[:i], orders[i+1:]...)
+			return s.WriteJson(orders)
+		}
+	}
+
+	return fmt.Errorf("storage.ReturnOrder error: %w", errOrderNotFound)
+
 }
 
 func (s *Storage) ReadJson() ([]models.Order, error) {

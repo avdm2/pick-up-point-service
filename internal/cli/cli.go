@@ -22,7 +22,7 @@ var (
 )
 
 type Module interface {
-	AddOrder(order models.Order) error
+	AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time) error
 	ReturnOrder(id models.ID) error
 	ReceiveOrders(ordersId []models.ID) ([]models.Order, error)
 	GetOrders(customerId models.ID, n int) ([]models.Order, error)
@@ -163,9 +163,7 @@ func (c *CLI) addOrder(args []string) error {
 		return fmt.Errorf("cli.addOrder error: %w", errDate)
 	}
 
-	order := models.NewOrder(orderId, customerId, date)
-
-	if errAdd := c.Module.AddOrder(*order); errAdd != nil {
+	if errAdd := c.Module.AddOrder(orderId, customerId, date); errAdd != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errAdd)
 	}
 
