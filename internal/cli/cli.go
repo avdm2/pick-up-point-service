@@ -1,13 +1,14 @@
 package cli
 
 import (
+	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"homework-1/internal/models"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,17 +17,17 @@ const (
 )
 
 var (
-	errEmptyArgs   = errors.New("empty args")
-	errIncorrectId = errors.New("empty or non-positive order or customer id")
+	errIncorrectArgAmount = errors.New("incorrect amount of arguments")
+	errIncorrectId        = errors.New("empty or non-positive order or customer id")
 )
 
 type Module interface {
-	Add(order models.Order) error
-	Return(id models.ID) error
-	Receive(ordersId []models.ID) ([]models.Order, error)
-	Orders(customerId models.ID, n int) ([]models.Order, error)
-	Refund(customerId models.ID, orderId models.ID) error
-	Refunds(page int, limit int) ([]models.Order, error)
+	AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time) error
+	ReturnOrder(id models.ID) error
+	ReceiveOrders(ordersId []models.ID) ([]models.Order, error)
+	GetOrders(customerId models.ID, n int) ([]models.Order, error)
+	RefundOrder(customerId models.ID, orderId models.ID) error
+	GetRefunds(page int, limit int) ([]models.Order, error)
 }
 
 type Deps struct {
@@ -35,75 +36,86 @@ type Deps struct {
 
 type CLI struct {
 	Deps
+	wg      sync.WaitGroup
+	tasks   chan string
+	workers int
 }
 
-func NewCLI(d Deps) CLI {
-	return CLI{
-		Deps: d,
+func NewCLI(d Deps) *CLI {
+	return &CLI{
+		Deps:    d,
+		tasks:   make(chan string),
+		workers: 2,
 	}
 }
 
-func (c CLI) Run() error {
-	args := os.Args[1:]
-	if len(args) == 0 {
-		return fmt.Errorf("cli.Run() error: %w", errEmptyArgs)
+func (c *CLI) Run() error {
+
+	for i := 0; i < c.workers; i++ {
+		c.wg.Add(1)
+		fmt.Printf("[* w%d *] Запуск воркера\n", i)
+		go c.worker(i)
 	}
 
-	com := args[0]
-	switch com {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		fmt.Println("[>>] Введите команду:")
+		cmd, errRead := reader.ReadString('\n')
+		if errRead != nil {
+			return fmt.Errorf("cli.Run error: %w", errRead)
+		}
+
+		cmd = strings.TrimRight(cmd, "\n")
+		if cmd == "exit" {
+			break
+		}
+
+		c.tasks <- cmd
+	}
+
+	close(c.tasks)
+	c.wg.Wait()
+	return nil
+}
+
+func (c *CLI) worker(id int) {
+	defer c.wg.Done()
+	for cmd := range c.tasks {
+		fmt.Printf("[* w%d *] Обработка команды [%s]\n", id, cmd)
+		if errCmd := c.handleCommand(cmd); errCmd != nil {
+			fmt.Printf("cli.Run error: %s\n", errCmd)
+		}
+		fmt.Printf("[* w%d *] Команда [%s] обработана\n", id, cmd)
+	}
+}
+
+func (c *CLI) handleCommand(command string) error {
+
+	// Имитация длительной работы
+	time.Sleep(5 * time.Second)
+
+	arguments := strings.Split(command, " ")
+	switch arguments[0] {
 	case help:
 		return c.help()
 	case addOrder:
-		return c.addOrder(args[1:])
+		return c.addOrder(arguments[1:])
 	case returnOrder:
-		return c.returnOrder(args[1:])
+		return c.returnOrder(arguments[1:])
 	case receiveOrder:
-		return c.receiveOrder(args[1:])
+		return c.receiveOrder(arguments[1:])
 	case getOrders:
-		return c.getOrders(args[1:])
+		return c.getOrders(arguments[1:])
 	case createRefund:
-		return c.createRefund(args[1:])
+		return c.createRefund(arguments[1:])
 	case getRefunds:
-		return c.getRefunds(args[1:])
+		return c.getRefunds(arguments[1:])
 	default:
 		return c.unknownCommand()
 	}
 }
 
-func commandList() []command {
-	return []command{
-		{
-			name:        help,
-			description: "Справка",
-		},
-		{
-			name:        addOrder,
-			description: "Добавить заказ",
-		},
-		{
-			name:        returnOrder,
-			description: "Удалить заказ",
-		},
-		{
-			name:        receiveOrder,
-			description: "Получить заказ",
-		},
-		{
-			name:        getOrders,
-			description: "Получить список заказов",
-		},
-		{
-			name:        createRefund,
-			description: "Создать запрос на возврат",
-		},
-		{
-			name:        getRefunds,
-			description: "Получить список возвратов",
-		},
-	}
-}
-
-func (c CLI) help() error {
+func (c *CLI) help() error {
 	fmt.Println("Список доступных команд: ")
 
 	commands := commandList()
@@ -114,25 +126,33 @@ func (c CLI) help() error {
 	return nil
 }
 
-func (c CLI) unknownCommand() error {
+func (c *CLI) unknownCommand() error {
 	fmt.Println("Введенная команда не найдена. Проверьте количество аргументов или используйте другие команды " +
 		"(для вывода списка команд воспользуйтесь командой \"help\")")
 
 	return nil
 }
 
-func (c CLI) addOrder(args []string) error {
-	var orderId, customerId models.ID
-	var expirationTime string
-
-	fs := flag.NewFlagSet(addOrder, flag.ContinueOnError)
-	fs.Int64Var((*int64)(&orderId), "orderId", -1, "use --orderId=1")
-	fs.Int64Var((*int64)(&customerId), "customerId", -1, "use --customerId=1")
-	fs.StringVar(&expirationTime, "expirationTime", "01-01-1990", "use --expirationTime=01-01-2024")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.addOrder error: %w", errFs)
+// addOrder --orderId=1 --customerId=1 --expirationTime=01-01-2024
+func (c *CLI) addOrder(args []string) error {
+	if len(args) != 3 {
+		return errIncorrectArgAmount
 	}
+
+	expirationTime := args[2]
+
+	orderIdInt, errParse := strconv.Atoi(args[0])
+	if errParse != nil {
+		return fmt.Errorf("cli.addOrder error: %w", errParse)
+	}
+
+	customerIdInt, errParse := strconv.Atoi(args[1])
+	if errParse != nil {
+		return fmt.Errorf("cli.addOrder error: %w", errParse)
+	}
+
+	orderId := models.ID(orderIdInt)
+	customerId := models.ID(customerIdInt)
 
 	if orderId <= 0 || customerId <= 0 {
 		return fmt.Errorf("cli.addOrder error: %w", errIncorrectId)
@@ -143,9 +163,7 @@ func (c CLI) addOrder(args []string) error {
 		return fmt.Errorf("cli.addOrder error: %w", errDate)
 	}
 
-	order := models.NewOrder(orderId, customerId, date)
-
-	if errAdd := c.Module.Add(*order); errAdd != nil {
+	if errAdd := c.Module.AddOrder(orderId, customerId, date); errAdd != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errAdd)
 	}
 
@@ -153,50 +171,49 @@ func (c CLI) addOrder(args []string) error {
 	return nil
 }
 
-func (c CLI) returnOrder(args []string) error {
-	var orderId models.ID
-
-	fs := flag.NewFlagSet(returnOrder, flag.ContinueOnError)
-	fs.Int64Var((*int64)(&orderId), "orderId", -1, "use --orderId=1")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.returnOrder error: %w", errFs)
+// returnOrder --orderId=1
+func (c *CLI) returnOrder(args []string) error {
+	if len(args) != 1 {
+		return errIncorrectArgAmount
 	}
+
+	orderIdInt, errParse := strconv.Atoi(args[0])
+	if errParse != nil {
+		return fmt.Errorf("cli.returnOrder error: %w", errParse)
+	}
+
+	orderId := models.ID(orderIdInt)
 
 	if orderId <= 0 {
 		return fmt.Errorf("cli.returnOrder error: %w", errIncorrectId)
 	}
 
-	if errReturn := c.Module.Return(orderId); errReturn != nil {
+	if errReturn := c.Module.ReturnOrder(orderId); errReturn != nil {
 		return fmt.Errorf("cli.returnOrder error: %w", errReturn)
 	}
 
-	fmt.Printf("Заказ %d удален!\n", orderId)
+	fmt.Printf("Заказ %d возвращен!\n", orderId)
 	return nil
 }
 
-func (c CLI) receiveOrder(args []string) error {
-	var ordersStr string
-
-	fs := flag.NewFlagSet(receiveOrder, flag.ContinueOnError)
-	fs.StringVar(&ordersStr, "orders", "0", "use --orders=1,2,3,4,5")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.receiveOrder error: %w", errFs)
+// receiveOrder --orders=1,2,3,4,5
+func (c *CLI) receiveOrder(args []string) error {
+	if len(args) != 1 {
+		return errIncorrectArgAmount
 	}
 
-	orderIds, errParseId := parseIDs(ordersStr)
+	orderIds, errParseId := parseIDs(args[0])
 	if errParseId != nil {
 		return fmt.Errorf("cli.receiveOrder error: %w", errParseId)
 	}
 
-	orders, errReceiving := c.Module.Receive(orderIds)
+	orders, errReceiving := c.Module.ReceiveOrders(orderIds)
 	if errReceiving != nil {
 		return fmt.Errorf("cli.receiveOrder error: %w", errReceiving)
 	}
 
 	if len(orders) == 0 {
-		fmt.Printf("Заказов c номерами [%s] нет!\n", ordersStr)
+		fmt.Printf("Заказов c номерами [%s] нет!\n", args[0])
 		return nil
 	}
 
@@ -208,23 +225,29 @@ func (c CLI) receiveOrder(args []string) error {
 	return nil
 }
 
-func (c CLI) getOrders(args []string) error {
-	var customerId models.ID
-	var n int
-
-	fs := flag.NewFlagSet(getOrders, flag.ContinueOnError)
-	fs.Int64Var((*int64)(&customerId), "customerId", -1, "use --customerId=1")
-	fs.IntVar(&n, "n", -1, "use --n=1")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.getOrders error: %w", errFs)
+// getOrders --customerId=1 --n=1
+func (c *CLI) getOrders(args []string) error {
+	if len(args) != 2 {
+		return errIncorrectArgAmount
 	}
+
+	customerIdInt, errParse := strconv.Atoi(args[0])
+	if errParse != nil {
+		return fmt.Errorf("cli.getOrders error: %w", errParse)
+	}
+
+	n, errParse := strconv.Atoi(args[1])
+	if errParse != nil {
+		return fmt.Errorf("cli.getOrders error: %w", errParse)
+	}
+
+	customerId := models.ID(customerIdInt)
 
 	if customerId <= 0 {
 		return fmt.Errorf("cli.getOrders error: %w", errIncorrectId)
 	}
 
-	orders, errGet := c.Module.Orders(customerId, n)
+	orders, errGet := c.Module.GetOrders(customerId, n)
 	if errGet != nil {
 		return fmt.Errorf("cli.getOrders error: %w", errGet)
 	}
@@ -242,22 +265,30 @@ func (c CLI) getOrders(args []string) error {
 	return nil
 }
 
-func (c CLI) createRefund(args []string) error {
-	var orderId, customerId models.ID
-
-	fs := flag.NewFlagSet(createRefund, flag.ContinueOnError)
-	fs.Int64Var((*int64)(&orderId), "orderId", -1, "use --orderId=1")
-	fs.Int64Var((*int64)(&customerId), "customerId", -1, "use --customerId=1")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.createRefund error: %w", errFs)
+// createRefund --orderId=1 --customerId=1
+func (c *CLI) createRefund(args []string) error {
+	if len(args) != 2 {
+		return errIncorrectArgAmount
 	}
+
+	orderIdInt, errParse := strconv.Atoi(args[0])
+	if errParse != nil {
+		return fmt.Errorf("cli.createRefund error: %w", errParse)
+	}
+
+	customerIdInt, errParse := strconv.Atoi(args[1])
+	if errParse != nil {
+		return fmt.Errorf("cli.createRefund error: %w", errParse)
+	}
+
+	orderId := models.ID(orderIdInt)
+	customerId := models.ID(customerIdInt)
 
 	if orderId <= 0 || customerId <= 0 {
 		return fmt.Errorf("cli.createRefund error: %w", errIncorrectId)
 	}
 
-	if errRefund := c.Module.Refund(customerId, orderId); errRefund != nil {
+	if errRefund := c.Module.RefundOrder(customerId, orderId); errRefund != nil {
 		return fmt.Errorf("cli.createRefund error: %w", errRefund)
 	}
 
@@ -265,18 +296,23 @@ func (c CLI) createRefund(args []string) error {
 	return nil
 }
 
-func (c CLI) getRefunds(args []string) error {
-	var page, limit int
-
-	fs := flag.NewFlagSet(getRefunds, flag.ContinueOnError)
-	fs.IntVar(&page, "page", 0, "use --page=1")
-	fs.IntVar(&limit, "limit", 0, "use --limit=1")
-
-	if errFs := fs.Parse(args); errFs != nil {
-		return fmt.Errorf("cli.getRefunds error: %w", errFs)
+// getRefunds --page=1 --limit=1
+func (c *CLI) getRefunds(args []string) error {
+	if len(args) != 2 {
+		return errIncorrectArgAmount
 	}
 
-	orders, errGetRefunds := c.Module.Refunds(page, limit)
+	page, errParse := strconv.Atoi(args[0])
+	if errParse != nil {
+		return fmt.Errorf("cli.getRefunds error: %w", errParse)
+	}
+
+	limit, errParse := strconv.Atoi(args[1])
+	if errParse != nil {
+		return fmt.Errorf("cli.getRefunds error: %w", errParse)
+	}
+
+	orders, errGetRefunds := c.Module.GetRefunds(page, limit)
 	if errGetRefunds != nil {
 		return fmt.Errorf("cli.getRefunds error: %w", errGetRefunds)
 	}
@@ -310,4 +346,41 @@ func parseIDs(idsStr string) ([]models.ID, error) {
 	}
 
 	return ids, nil
+}
+
+func commandList() []command {
+	return []command{
+		{
+			name:        help,
+			description: "Справка",
+		},
+		{
+			name:        addOrder,
+			description: "Добавить заказ",
+		},
+		{
+			name:        returnOrder,
+			description: "Удалить заказ",
+		},
+		{
+			name:        receiveOrder,
+			description: "Получить заказ",
+		},
+		{
+			name:        getOrders,
+			description: "Получить список заказов",
+		},
+		{
+			name:        createRefund,
+			description: "Создать запрос на возврат",
+		},
+		{
+			name:        getRefunds,
+			description: "Получить список возвратов",
+		},
+		{
+			name:        exit,
+			description: "Выход",
+		},
+	}
 }
