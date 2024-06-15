@@ -33,17 +33,23 @@ func NewStorage(fileName string) (*Storage, error) {
 }
 
 func (s *Storage) AddOrder(order models.Order) error {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return fmt.Errorf("storage.AddOrder error: %w", err)
 	}
 
 	orders = append(orders, order)
-	return s.WriteJson(orders)
+	return s.writeJson(orders)
 }
 
 func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
-	orders, errJson := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, errJson := s.readJson()
 	if errJson != nil {
 		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errJson)
 	}
@@ -58,7 +64,10 @@ func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
 }
 
 func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, error) {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", err)
 	}
@@ -75,7 +84,10 @@ func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, erro
 }
 
 func (s *Storage) GetRefunds() ([]models.Order, error) {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return nil, fmt.Errorf("storage.GetRefunds error: %w", err)
 	}
@@ -91,7 +103,10 @@ func (s *Storage) GetRefunds() ([]models.Order, error) {
 }
 
 func (s *Storage) ChangeOrder(order models.Order) error {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return fmt.Errorf("storage.ChangeOrder error: %w", err)
 	}
@@ -99,7 +114,7 @@ func (s *Storage) ChangeOrder(order models.Order) error {
 	for i, v := range orders {
 		if v.OrderID == order.OrderID {
 			orders[i] = order
-			return s.WriteJson(orders)
+			return s.writeJson(orders)
 		}
 	}
 
@@ -107,7 +122,10 @@ func (s *Storage) ChangeOrder(order models.Order) error {
 }
 
 func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", err)
 	}
@@ -116,7 +134,7 @@ func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
 		if v.OrderID == orderId {
 			orders[i].ReceivedTime = time.Now()
 			orders[i].ReceivedByCustomer = true
-			return orders[i], s.WriteJson(orders)
+			return orders[i], s.writeJson(orders)
 		}
 	}
 
@@ -124,7 +142,10 @@ func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
 }
 
 func (s *Storage) ReturnOrder(orderId models.ID) error {
-	orders, err := s.ReadJson()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	orders, err := s.readJson()
 	if err != nil {
 		return fmt.Errorf("storage.ReturnOrder error: %w", err)
 	}
@@ -132,7 +153,7 @@ func (s *Storage) ReturnOrder(orderId models.ID) error {
 	for i, v := range orders {
 		if v.OrderID == orderId {
 			orders = append(orders[:i], orders[i+1:]...)
-			return s.WriteJson(orders)
+			return s.writeJson(orders)
 		}
 	}
 
@@ -140,10 +161,7 @@ func (s *Storage) ReturnOrder(orderId models.ID) error {
 
 }
 
-func (s *Storage) ReadJson() ([]models.Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Storage) readJson() ([]models.Order, error) {
 	b, errReadFile := os.ReadFile(s.fileName)
 	if errReadFile != nil {
 		return nil, fmt.Errorf("storage.readJson error: %w", errReadFile)
@@ -166,10 +184,7 @@ func (s *Storage) ReadJson() ([]models.Order, error) {
 	return orders, nil
 }
 
-func (s *Storage) WriteJson(orders []models.Order) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Storage) writeJson(orders []models.Order) error {
 	var orderRecords []orderRecord
 	for _, order := range orders {
 		orderRecords = append(orderRecords, transform(order))
