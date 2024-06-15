@@ -1,4 +1,4 @@
-package storage
+package schema
 
 import (
 	"homework-1/internal/models"
@@ -7,18 +7,16 @@ import (
 
 type id int64
 
-type orderRecord struct {
-	OrderID    id `json:"order_id"`
-	CustomerID id `json:"customer_id"`
-
-	ExpirationTime time.Time `json:"expiration_time"`
-	ReceivedTime   time.Time `json:"received_time"`
-
-	ReceivedByCustomer bool `json:"received_by_customer"`
-	Refunded           bool `json:"refunded"`
+type OrderRecord struct {
+	OrderID            id        `db:"order_id"`
+	CustomerID         id        `db:"customer_id"`
+	ExpirationTime     time.Time `db:"expiration_time"`
+	ReceivedTime       time.Time `db:"received_time"`
+	ReceivedByCustomer bool      `db:"received_by_customer"`
+	Refunded           bool      `db:"refunded"`
 }
 
-func (o orderRecord) toDomain() models.Order {
+func (o OrderRecord) ToDomain() models.Order {
 	return models.Order{
 		OrderID:            models.ID(o.OrderID),
 		CustomerID:         models.ID(o.CustomerID),
@@ -29,8 +27,8 @@ func (o orderRecord) toDomain() models.Order {
 	}
 }
 
-func transform(orderModel models.Order) orderRecord {
-	return orderRecord{
+func Transform(orderModel models.Order) OrderRecord {
+	return OrderRecord{
 		OrderID:            id(orderModel.OrderID),
 		CustomerID:         id(orderModel.CustomerID),
 		ExpirationTime:     orderModel.ExpirationTime,

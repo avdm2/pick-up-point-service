@@ -1,220 +1,283 @@
 package storage
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
+	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"homework-1/internal/models"
-	"os"
+	"homework-1/internal/storage/schema"
+	"homework-1/internal/storage/transactor"
 	"sync"
 	"time"
 )
 
 var (
-	errFileCreation  = errors.New("can not create a file")
 	errOrderNotFound = errors.New("order not found")
+	ErrOrderExists   = errors.New("order already exists")
+)
+
+var (
+	orderColumns = []string{"order_id", "customer_id", "expiration_time", "received_time", "received_by_customer", "refunded"}
+	orderTable   = "orders"
 )
 
 type Storage struct {
-	fileName string
-	mu       sync.Mutex
+	db *pgxpool.Pool
+	tr *transactor.Transactor
+	mu sync.Mutex
 }
 
-func NewStorage(fileName string) (*Storage, error) {
-	if _, err := os.Stat(fileName); err == nil {
-		return &Storage{fileName: fileName}, nil
+func NewStorage(connUrl string) (*Storage, error) {
+	db, err := pgxpool.New(context.Background(), connUrl)
+	if err != nil {
+		return nil, fmt.Errorf("storage.NewStorage error: %w", err)
+
 	}
 
-	if err := createFile(fileName); err != nil {
-		return &Storage{}, fmt.Errorf("storage.NewStorage error: %w", errFileCreation)
-	}
-
-	return &Storage{fileName: fileName}, nil
+	return &Storage{
+		db: db,
+		tr: &transactor.Transactor{Db: db},
+	}, nil
 }
 
 func (s *Storage) AddOrder(order models.Order) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
-		return fmt.Errorf("storage.AddOrder error: %w", err)
+	ordRecord := schema.Transform(order)
+
+	sql, args, errSql := sq.
+		Insert(orderTable).
+		Columns(orderColumns...).
+		Values(ordRecord.OrderID, ordRecord.CustomerID, ordRecord.ExpirationTime, ordRecord.ReceivedTime, ordRecord.ReceivedByCustomer, ordRecord.Refunded).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return fmt.Errorf("storage.AddOrder error: %w", errSql)
 	}
 
-	orders = append(orders, order)
-	return s.writeJson(orders)
+	_, errExec := s.db.Exec(context.Background(), sql, args...)
+	if errExec != nil {
+		if errors.Is(errExec, pgx.ErrNoRows) {
+			return fmt.Errorf("storage.AddOrder error: %w", ErrOrderExists)
+		}
+		return fmt.Errorf("storage.AddOrder error: %w", errExec)
+	}
+
+	return nil
 }
 
 func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, errJson := s.readJson()
-	if errJson != nil {
-		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errJson)
+	sql, args, errSql := sq.
+		Select(orderColumns...).
+		From(orderTable).
+		Where(sq.Eq{"order_id": orderId}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errSql)
 	}
 
-	for _, order := range orders {
-		if order.OrderID == orderId {
-			return order, nil
+	rows, errQuery := s.db.Query(context.Background(), sql, args...)
+	if errQuery != nil {
+		if errors.Is(errQuery, pgx.ErrNoRows) {
+			return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errOrderNotFound)
+		}
+		return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errQuery)
+	}
+	defer rows.Close()
+
+	var ordRecord schema.OrderRecord
+	for rows.Next() {
+		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
+			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errScan)
 		}
 	}
 
-	return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errOrderNotFound)
+	return ordRecord.ToDomain(), nil
 }
 
 func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
-		return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", err)
+	sql, args, errSql := sq.
+		Select(orderColumns...).
+		From(orderTable).
+		Where(sq.Eq{"customer_id": customerId}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", errSql)
 	}
 
-	var customersOrders []models.Order
-	for _, order := range orders {
-		if order.CustomerID == customerId {
-			customersOrders = append(customersOrders, order)
+	rows, errQuery := s.db.Query(context.Background(), sql, args...)
+	if errQuery != nil {
+		if errors.Is(errQuery, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", errOrderNotFound)
 		}
+		return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", errQuery)
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var ordRecord schema.OrderRecord
+		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
+			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", errScan)
+		}
+		orders = append(orders, ordRecord.ToDomain())
 	}
 
-	return customersOrders, nil
-
+	return orders, nil
 }
 
 func (s *Storage) GetRefunds() ([]models.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
-		return nil, fmt.Errorf("storage.GetRefunds error: %w", err)
+	sql, args, errSql := sq.
+		Select(orderColumns...).
+		From(orderTable).
+		Where(sq.Eq{"refunded": true}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", errSql)
 	}
 
-	var refunds []models.Order
-	for _, order := range orders {
-		if order.Refunded {
-			refunds = append(refunds, order)
+	rows, errQuery := s.db.Query(context.Background(), sql, args...)
+	if errQuery != nil {
+		if errors.Is(errQuery, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("storage.GetRefunds error: %w", errOrderNotFound)
 		}
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", errQuery)
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var ordRecord schema.OrderRecord
+		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
+			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			return nil, fmt.Errorf("storage.GetRefunds error: %w", errScan)
+		}
+		orders = append(orders, ordRecord.ToDomain())
 	}
 
-	return refunds, nil
+	return orders, nil
 }
 
 func (s *Storage) ChangeOrder(order models.Order) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
+	ordRecord := schema.Transform(order)
+
+	f := func(ctxTX context.Context) error {
+
+		sql, args, errSql := sq.
+			Update(orderTable).
+			Set("customer_id", ordRecord.CustomerID).
+			Set("expiration_time", ordRecord.ExpirationTime).
+			Set("received_time", ordRecord.ReceivedTime).
+			Set("received_by_customer", ordRecord.ReceivedByCustomer).
+			Set("refunded", ordRecord.Refunded).
+			Where(sq.Eq{"order_id": ordRecord.OrderID}).
+			PlaceholderFormat(sq.Dollar).
+			ToSql()
+		if errSql != nil {
+			return fmt.Errorf("storage.ChangeOrder error: %w", errSql)
+		}
+
+		_, errExec := s.db.Exec(context.Background(), sql, args...)
+		if errExec != nil {
+			if errors.Is(errExec, pgx.ErrNoRows) {
+				return fmt.Errorf("storage.ChangeOrder error: %w", errOrderNotFound)
+			}
+			return fmt.Errorf("storage.ChangeOrder error: %w", errExec)
+		}
+
+		return nil
+
+	}
+
+	if err := s.tr.RunRepeatableRead(context.Background(), f); err != nil {
 		return fmt.Errorf("storage.ChangeOrder error: %w", err)
 	}
 
-	for i, v := range orders {
-		if v.OrderID == order.OrderID {
-			orders[i] = order
-			return s.writeJson(orders)
-		}
-	}
-
-	return fmt.Errorf("storage.ChangeOrder error: %w", errOrderNotFound)
+	return nil
 }
 
 func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
-		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", err)
+	sql, args, errSql := sq.
+		Update(orderTable).
+		Set("received_time", time.Now()).
+		Set("received_by_customer", true).
+		Where(sq.Eq{"order_id": orderId}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errSql)
 	}
 
-	for i, v := range orders {
-		if v.OrderID == orderId {
-			orders[i].ReceivedTime = time.Now()
-			orders[i].ReceivedByCustomer = true
-			return orders[i], s.writeJson(orders)
+	rows, errQuery := s.db.Query(context.Background(), sql, args...)
+	if errQuery != nil {
+		if errors.Is(errQuery, pgx.ErrNoRows) {
+			return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errOrderNotFound)
 		}
+		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errQuery)
+	}
+	defer rows.Close()
+
+	var order models.Order
+	for rows.Next() {
+		var ordRecord schema.OrderRecord
+		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
+			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errScan)
+		}
+		order = ordRecord.ToDomain()
 	}
 
-	return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errOrderNotFound)
+	return order, nil
 }
 
 func (s *Storage) ReturnOrder(orderId models.ID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	orders, err := s.readJson()
-	if err != nil {
-		return fmt.Errorf("storage.ReturnOrder error: %w", err)
+	sql, args, errSql := sq.
+		Delete(orderTable).
+		Where(sq.Eq{"order_id": orderId}).
+		PlaceholderFormat(sq.Dollar).
+		ToSql()
+	if errSql != nil {
+		return fmt.Errorf("storage.ReturnOrder error: %w", errSql)
 	}
 
-	for i, v := range orders {
-		if v.OrderID == orderId {
-			orders = append(orders[:i], orders[i+1:]...)
-			return s.writeJson(orders)
+	_, errExec := s.db.Exec(context.Background(), sql, args...)
+	if errExec != nil {
+		if errors.Is(errExec, pgx.ErrNoRows) {
+			return fmt.Errorf("storage.ReceiveOrder error: %w", errOrderNotFound)
 		}
+		return fmt.Errorf("storage.ReceiveOrder error: %w", errExec)
 	}
 
-	return fmt.Errorf("storage.ReturnOrder error: %w", errOrderNotFound)
-
-}
-
-func (s *Storage) readJson() ([]models.Order, error) {
-	b, errReadFile := os.ReadFile(s.fileName)
-	if errReadFile != nil {
-		return nil, fmt.Errorf("storage.readJson error: %w", errReadFile)
-	}
-
-	if len(b) == 0 {
-		return nil, nil
-	}
-
-	var orderRecords []orderRecord
-	if errUnmarshal := json.Unmarshal(b, &orderRecords); errUnmarshal != nil {
-		return nil, fmt.Errorf("storage.readJson error: %w", errUnmarshal)
-	}
-
-	var orders []models.Order
-	for _, orderRec := range orderRecords {
-		orders = append(orders, orderRec.toDomain())
-	}
-
-	return orders, nil
-}
-
-func (s *Storage) writeJson(orders []models.Order) error {
-	var orderRecords []orderRecord
-	for _, order := range orders {
-		orderRecords = append(orderRecords, transform(order))
-	}
-
-	bWrite, errMarshal := json.MarshalIndent(orderRecords, "  ", "  ")
-	if errMarshal != nil {
-		return fmt.Errorf("storage.writeJson error: %w", errMarshal)
-	}
-
-	errWriting := os.WriteFile(s.fileName, bWrite, 0666)
-	if errWriting != nil {
-		return fmt.Errorf("storage.writeJson error: %w", errWriting)
-	}
-
-	return nil
-}
-
-func createFile(fileName string) error {
-	f, errCreate := os.Create(fileName)
-	if errCreate != nil {
-		return fmt.Errorf("storage.createFile error: %w", errCreate)
-	}
-
-	defer func(f *os.File) {
-		err := f.Close()
-		if err != nil {
-			fmt.Printf("Can not close file %s: %s\n", fileName, err)
-			return
-		}
-	}(f)
 	return nil
 }

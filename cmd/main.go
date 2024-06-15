@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	storagePath = "orders.json"
+	connUrl = "postgres://postgres:admin@localhost:5432/ozon_hw3"
 )
 
 func main() {
-	s, errStorage := storage.NewStorage(storagePath)
+	s, errStorage := storage.NewStorage(connUrl)
 	if errStorage != nil {
 		fmt.Printf("Storage error. %s\n", errStorage)
 		os.Exit(1)
