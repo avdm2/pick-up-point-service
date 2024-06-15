@@ -38,8 +38,15 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 		return fmt.Errorf("module.AddOrder error: %w", errGetOrder)
 	}
 
-	order := models.NewOrder(orderId, customerId, expirationDate)
-	return m.Storage.AddOrder(*order)
+	order := models.Order{
+		OrderID:            orderId,
+		CustomerID:         customerId,
+		ExpirationTime:     expirationDate,
+		ReceivedTime:       time.Time{},
+		ReceivedByCustomer: false,
+		Refunded:           false,
+	}
+	return m.Storage.AddOrder(order)
 }
 
 func (m *Module) ReturnOrder(id models.ID) error {

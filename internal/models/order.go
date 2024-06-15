@@ -18,17 +18,6 @@ type Order struct {
 	Refunded           bool
 }
 
-func NewOrder(OrderID, CustomerID ID, ExpirationTime time.Time) *Order {
-	return &Order{
-		OrderID:            OrderID,
-		CustomerID:         CustomerID,
-		ExpirationTime:     ExpirationTime,
-		ReceivedTime:       time.Time{},
-		ReceivedByCustomer: false,
-		Refunded:           false,
-	}
-}
-
 func (o Order) String() string {
 	return fmt.Sprintf(
 		"OrderID: %d; CustomerID: %d; ExpirationTime: %s; ReceivedTime: %s; "+
