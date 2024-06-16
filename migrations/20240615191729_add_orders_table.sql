@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE orders
+CREATE TABLE IF NOT EXISTS orders
 (
     order_id             SERIAL PRIMARY KEY,
     customer_id          INT       NOT NULL,
@@ -13,5 +13,5 @@ CREATE TABLE orders
 
 -- +goose Down
 -- +goose StatementBegin
-SELECT 'down SQL query';
+DROP TABLE IF EXISTS orders;
 -- +goose StatementEnd

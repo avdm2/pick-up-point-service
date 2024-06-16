@@ -10,7 +10,6 @@ import (
 	"homework-1/internal/models"
 	"homework-1/internal/storage/schema"
 	"homework-1/internal/storage/transactor"
-	"sync"
 	"time"
 )
 
@@ -27,7 +26,6 @@ var (
 type Storage struct {
 	db *pgxpool.Pool
 	tr *transactor.Transactor
-	mu sync.Mutex
 }
 
 func NewStorage(connUrl string) (*Storage, error) {
@@ -39,14 +37,11 @@ func NewStorage(connUrl string) (*Storage, error) {
 
 	return &Storage{
 		db: db,
-		tr: &transactor.Transactor{Db: db},
+		tr: transactor.NewTransactor(db),
 	}, nil
 }
 
 func (s *Storage) AddOrder(order models.Order) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	ordRecord := schema.Transform(order)
 
 	sql, args, errSql := sq.
@@ -71,9 +66,6 @@ func (s *Storage) AddOrder(order models.Order) error {
 }
 
 func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	sql, args, errSql := sq.
 		Select(orderColumns...).
 		From(orderTable).
@@ -106,9 +98,6 @@ func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
 }
 
 func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	sql, args, errSql := sq.
 		Select(orderColumns...).
 		From(orderTable).
@@ -143,9 +132,6 @@ func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, erro
 }
 
 func (s *Storage) GetRefunds() ([]models.Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	sql, args, errSql := sq.
 		Select(orderColumns...).
 		From(orderTable).
@@ -180,12 +166,10 @@ func (s *Storage) GetRefunds() ([]models.Order, error) {
 }
 
 func (s *Storage) ChangeOrder(order models.Order) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	ordRecord := schema.Transform(order)
 
 	f := func(ctxTX context.Context) error {
+		queryEngine := s.tr.GetQueryEngine(ctxTX)
 
 		sql, args, errSql := sq.
 			Update(orderTable).
@@ -201,7 +185,7 @@ func (s *Storage) ChangeOrder(order models.Order) error {
 			return fmt.Errorf("storage.ChangeOrder error: %w", errSql)
 		}
 
-		_, errExec := s.db.Exec(context.Background(), sql, args...)
+		_, errExec := queryEngine.Exec(context.Background(), sql, args...)
 		if errExec != nil {
 			if errors.Is(errExec, pgx.ErrNoRows) {
 				return fmt.Errorf("storage.ChangeOrder error: %w", errOrderNotFound)
@@ -221,9 +205,6 @@ func (s *Storage) ChangeOrder(order models.Order) error {
 }
 
 func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	sql, args, errSql := sq.
 		Update(orderTable).
 		Set("received_time", time.Now()).
@@ -259,9 +240,6 @@ func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
 }
 
 func (s *Storage) ReturnOrder(orderId models.ID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	sql, args, errSql := sq.
 		Delete(orderTable).
 		Where(sq.Eq{"order_id": orderId}).

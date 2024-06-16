@@ -4,17 +4,30 @@ import (
 	"context"
 	"fmt"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type QueryEngine interface {
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+}
+
+type QueryEngineProvider interface {
+	GetQueryEngine(ctx context.Context) QueryEngine
+}
+
 type Transactor struct {
-	Db *pgxpool.Pool
+	pool *pgxpool.Pool
 }
 
 const key = "tx"
 
+func NewTransactor(db *pgxpool.Pool) *Transactor {
+	return &Transactor{pool: db}
+}
+
 func (t *Transactor) RunRepeatableRead(ctx context.Context, f func(ctxTX context.Context) error) error {
-	tx, errTx := t.Db.BeginTx(ctx, pgx.TxOptions{
+	tx, errTx := t.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:   pgx.RepeatableRead,
 		AccessMode: pgx.ReadWrite,
 	})
@@ -34,4 +47,13 @@ func (t *Transactor) RunRepeatableRead(ctx context.Context, f func(ctxTX context
 	}
 
 	return nil
+}
+
+func (t *Transactor) GetQueryEngine(ctx context.Context) QueryEngine {
+	tx, ok := ctx.Value(key).(QueryEngine)
+	if ok && tx != nil {
+		return tx
+	}
+
+	return t.pool
 }
