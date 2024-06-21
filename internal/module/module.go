@@ -33,9 +33,13 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 		return errWrongExpiration
 	}
 
-	_, errGetOrder := m.Storage.GetOrder(orderId)
+	fromDb, errGetOrder := m.Storage.GetOrder(orderId)
 	if errGetOrder != nil {
 		return fmt.Errorf("module.AddOrder error: %w", errGetOrder)
+	}
+
+	if fromDb.OrderID == orderId {
+		return fmt.Errorf("module.AddOrder error: %w", storage.ErrOrderExists)
 	}
 
 	order := models.Order{

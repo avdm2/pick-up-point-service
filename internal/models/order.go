@@ -8,12 +8,10 @@ import (
 type ID int64
 
 type Order struct {
-	OrderID    ID
-	CustomerID ID
-
-	ExpirationTime time.Time
-	ReceivedTime   time.Time
-
+	OrderID            ID
+	CustomerID         ID
+	ExpirationTime     time.Time
+	ReceivedTime       time.Time
 	ReceivedByCustomer bool
 	Refunded           bool
 }
