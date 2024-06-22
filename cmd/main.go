@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	// Можно было сделать через переменные окружения. Так и сделаю, когда настрою docker-compose
 	cfgPath = "config/config.yaml"
 )
 
@@ -21,8 +20,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	connUrl := fmt.Sprintf("%s://%s:%s@%s:%d/%s",
-		cfg.DatabaseConfig.DbName,
+	connUrl := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
 		cfg.DatabaseConfig.User, cfg.DatabaseConfig.Password,
 		cfg.DatabaseConfig.Host, cfg.DatabaseConfig.Port,
 		cfg.DatabaseConfig.Name)

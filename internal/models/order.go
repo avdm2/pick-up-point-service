@@ -20,11 +20,16 @@ type Order struct {
 	Package            PackageType
 	Weight             Kilo
 	Cost               Rub
+	PackageCost        Rub
 }
 
 func (o Order) String() string {
 	return fmt.Sprintf(
 		"OrderID: %d; CustomerID: %d; ExpirationTime: %s; ReceivedTime: %s; "+
-			"ReceivedByCustomer: %t; Refunded: %t; Package: %s; Weight: %f; Cost: %d",
-		o.OrderID, o.CustomerID, o.ExpirationTime, o.ReceivedTime, o.ReceivedByCustomer, o.Refunded, o.Package, o.Weight, o.Cost)
+			"ReceivedByCustomer: %t; Refunded: %t; Package: %s; Weight: %f; Total cost: %d;",
+		o.OrderID, o.CustomerID, o.ExpirationTime, o.ReceivedTime, o.ReceivedByCustomer, o.Refunded, o.Package, o.Weight, o.GetTotalCost())
+}
+
+func (o Order) GetTotalCost() Rub {
+	return o.Cost + o.PackageCost
 }

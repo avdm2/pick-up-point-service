@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS orders
     refunded             BOOLEAN DEFAULT FALSE,
     package              TEXT,
     weight               FLOAT     NOT NULL,
-    cost                 FLOAT     NOT NULL
+    cost                 FLOAT     NOT NULL,
+    package_cost         INT       NOT NULL
 );
 -- +goose StatementEnd
 

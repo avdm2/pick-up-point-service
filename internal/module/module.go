@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"homework-1/internal/models"
-	"homework-1/internal/models/packaging"
+	"homework-1/internal/services/packaging"
 	"homework-1/internal/storage"
 	"time"
 )
@@ -61,7 +61,8 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 		Refunded:           false,
 		Package:            pack,
 		Weight:             weight,
-		Cost:               cost + p.GetCost(),
+		Cost:               cost,
+		PackageCost:        p.GetCost(),
 	}
 	return m.Storage.AddOrder(order)
 }
