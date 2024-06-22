@@ -7,7 +7,10 @@ CREATE TABLE IF NOT EXISTS orders
     expiration_time      TIMESTAMP NOT NULL,
     received_time        TIMESTAMP,
     received_by_customer BOOLEAN DEFAULT FALSE,
-    refunded             BOOLEAN DEFAULT FALSE
+    refunded             BOOLEAN DEFAULT FALSE,
+    package              TEXT,
+    weight               FLOAT     NOT NULL,
+    cost                 FLOAT     NOT NULL
 );
 -- +goose StatementEnd
 

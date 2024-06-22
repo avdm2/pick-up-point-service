@@ -19,10 +19,12 @@ const (
 var (
 	errIncorrectArgAmount = errors.New("incorrect amount of arguments")
 	errIncorrectId        = errors.New("empty or non-positive order or customer id")
+	errNegativeWeight     = errors.New("weight can not be negative")
+	errNegativeCost       = errors.New("cost can not be negative")
 )
 
 type Module interface {
-	AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time) error
+	AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error
 	ReturnOrder(id models.ID) error
 	ReceiveOrders(ordersId []models.ID) ([]models.Order, error)
 	GetOrders(customerId models.ID, n int) ([]models.Order, error)
@@ -133,19 +135,19 @@ func (c *CLI) unknownCommand() error {
 	return nil
 }
 
-// addOrder --orderId=1 --customerId=1 --expirationTime=01-01-2024
+// addOrder --orderId=1 --customerId=1 --expirationTime=01-01-2024 --packageType=box --weight=1 --cost=1
 func (c *CLI) addOrder(args []string) error {
-	if len(args) != 3 {
+	if len(args) != 6 {
 		return errIncorrectArgAmount
 	}
 
 	expirationTime := args[2]
+	pack := models.PackageType(args[3])
 
 	orderIdInt, errParse := strconv.Atoi(args[0])
 	if errParse != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errParse)
 	}
-
 	customerIdInt, errParse := strconv.Atoi(args[1])
 	if errParse != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errParse)
@@ -153,7 +155,6 @@ func (c *CLI) addOrder(args []string) error {
 
 	orderId := models.ID(orderIdInt)
 	customerId := models.ID(customerIdInt)
-
 	if orderId <= 0 || customerId <= 0 {
 		return fmt.Errorf("cli.addOrder error: %w", errIncorrectId)
 	}
@@ -163,7 +164,27 @@ func (c *CLI) addOrder(args []string) error {
 		return fmt.Errorf("cli.addOrder error: %w", errDate)
 	}
 
-	if errAdd := c.Module.AddOrder(orderId, customerId, date); errAdd != nil {
+	weightFloat, errParse := strconv.ParseFloat(args[4], 32)
+	if errParse != nil {
+		return fmt.Errorf("cli.addOrder error: %w", errParse)
+	}
+
+	weight := models.Kilo(weightFloat)
+	if weight < 0 {
+		return fmt.Errorf("cli.addOrder error: %w", errNegativeWeight)
+	}
+
+	costInt, errParse := strconv.Atoi(args[5])
+	if errParse != nil {
+		return fmt.Errorf("cli.addOrder error: %w", errParse)
+	}
+
+	cost := models.Rub(costInt)
+	if cost < 0 {
+		return fmt.Errorf("cli.addOrder error: %w", errNegativeCost)
+	}
+
+	if errAdd := c.Module.AddOrder(orderId, customerId, date, pack, weight, cost); errAdd != nil {
 		return fmt.Errorf("cli.addOrder error: %w", errAdd)
 	}
 
