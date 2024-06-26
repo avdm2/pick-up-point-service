@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"homework-1/internal/models"
+	"homework-1/internal/services/packaging"
 	"homework-1/internal/storage"
 	"time"
 )
@@ -28,9 +29,18 @@ func NewModule(d Deps) *Module {
 	return &Module{Deps: d}
 }
 
-func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time) error {
+func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
 	if expirationDate.Before(time.Now()) {
 		return errWrongExpiration
+	}
+
+	p, errParse := packaging.ParsePackage(pack)
+	if errParse != nil {
+		return fmt.Errorf("module.AddOrder error: %w", errParse)
+	}
+
+	if errWeight := p.ValidateWeight(weight); errWeight != nil {
+		return fmt.Errorf("module.AddOrder error: %w", errWeight)
 	}
 
 	fromDb, errGetOrder := m.Storage.GetOrder(orderId)
@@ -49,6 +59,10 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 		ReceivedTime:       time.Time{},
 		ReceivedByCustomer: false,
 		Refunded:           false,
+		Package:            pack,
+		Weight:             weight,
+		Cost:               cost,
+		PackageCost:        p.GetCost(),
 	}
 	return m.Storage.AddOrder(order)
 }

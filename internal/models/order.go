@@ -6,6 +6,9 @@ import (
 )
 
 type ID int64
+type Rub int64
+type Kilo float32
+type PackageType string
 
 type Order struct {
 	OrderID            ID
@@ -14,11 +17,19 @@ type Order struct {
 	ReceivedTime       time.Time
 	ReceivedByCustomer bool
 	Refunded           bool
+	Package            PackageType
+	Weight             Kilo
+	Cost               Rub
+	PackageCost        Rub
 }
 
 func (o Order) String() string {
 	return fmt.Sprintf(
 		"OrderID: %d; CustomerID: %d; ExpirationTime: %s; ReceivedTime: %s; "+
-			"ReceivedByCustomer: %t; Refunded: %t;",
-		o.OrderID, o.CustomerID, o.ExpirationTime, o.ReceivedTime, o.ReceivedByCustomer, o.Refunded)
+			"ReceivedByCustomer: %t; Refunded: %t; Package: %s; Weight: %f; Total cost: %d;",
+		o.OrderID, o.CustomerID, o.ExpirationTime, o.ReceivedTime, o.ReceivedByCustomer, o.Refunded, o.Package, o.Weight, o.GetTotalCost())
+}
+
+func (o Order) GetTotalCost() Rub {
+	return o.Cost + o.PackageCost
 }

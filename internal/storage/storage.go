@@ -19,8 +19,12 @@ var (
 )
 
 var (
-	orderColumns = []string{"order_id", "customer_id", "expiration_time", "received_time", "received_by_customer", "refunded"}
-	orderTable   = "orders"
+	orderColumns = []string{
+		"order_id", "customer_id",
+		"expiration_time", "received_time",
+		"received_by_customer", "refunded",
+		"package", "weight", "cost", "package_cost"}
+	orderTable = "orders"
 )
 
 type Storage struct {
@@ -47,7 +51,10 @@ func (s *Storage) AddOrder(order models.Order) error {
 	sql, args, errSql := sq.
 		Insert(orderTable).
 		Columns(orderColumns...).
-		Values(ordRecord.OrderID, ordRecord.CustomerID, ordRecord.ExpirationTime, ordRecord.ReceivedTime, ordRecord.ReceivedByCustomer, ordRecord.Refunded).
+		Values(ordRecord.OrderID, ordRecord.CustomerID,
+			ordRecord.ExpirationTime, ordRecord.ReceivedTime,
+			ordRecord.ReceivedByCustomer, ordRecord.Refunded,
+			ordRecord.Package, ordRecord.Weight, ordRecord.Cost, ordRecord.PackageCost).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if errSql != nil {
@@ -89,7 +96,8 @@ func (s *Storage) GetOrder(orderId models.ID) (models.Order, error) {
 	for rows.Next() {
 		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
 			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
-			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded,
+			&ordRecord.Package, &ordRecord.Weight, &ordRecord.Cost, &ordRecord.PackageCost); errScan != nil {
 			return models.Order{}, fmt.Errorf("storage.GetOrder error: %w", errScan)
 		}
 	}
@@ -122,7 +130,8 @@ func (s *Storage) GetCustomersOrders(customerId models.ID) ([]models.Order, erro
 		var ordRecord schema.OrderRecord
 		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
 			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
-			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded,
+			&ordRecord.Package, &ordRecord.Weight, &ordRecord.Cost, &ordRecord.PackageCost); errScan != nil {
 			return nil, fmt.Errorf("storage.GetCustomersOrders error: %w", errScan)
 		}
 		orders = append(orders, ordRecord.ToDomain())
@@ -156,7 +165,8 @@ func (s *Storage) GetRefunds() ([]models.Order, error) {
 		var ordRecord schema.OrderRecord
 		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
 			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
-			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded,
+			&ordRecord.Package, &ordRecord.Weight, &ordRecord.Cost, &ordRecord.PackageCost); errScan != nil {
 			return nil, fmt.Errorf("storage.GetRefunds error: %w", errScan)
 		}
 		orders = append(orders, ordRecord.ToDomain())
@@ -178,6 +188,10 @@ func (s *Storage) ChangeOrder(order models.Order) error {
 			Set("received_time", ordRecord.ReceivedTime).
 			Set("received_by_customer", ordRecord.ReceivedByCustomer).
 			Set("refunded", ordRecord.Refunded).
+			Set("package", ordRecord.Package).
+			Set("weight", ordRecord.Weight).
+			Set("cost", ordRecord.Cost).
+			Set("package_cost", ordRecord.PackageCost).
 			Where(sq.Eq{"order_id": ordRecord.OrderID}).
 			PlaceholderFormat(sq.Dollar).
 			ToSql()
@@ -230,7 +244,8 @@ func (s *Storage) ReceiveOrder(orderId models.ID) (models.Order, error) {
 		var ordRecord schema.OrderRecord
 		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
 			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
-			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded); errScan != nil {
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded,
+			&ordRecord.Package, &ordRecord.Weight, &ordRecord.Cost, &ordRecord.PackageCost); errScan != nil {
 			return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errScan)
 		}
 		order = ordRecord.ToDomain()
