@@ -48,7 +48,7 @@ generate-mockgen:
 	PATH="$(LOCAL_BIN):$$PATH" go generate -x -run=mockgen ./...
 
 .PHONY: .generate-mock
-generate-mockgen:
+generate-mock:
 	find . -name '*_mock.go' -delete
 	$(MOCKGEN_BIN) mockgen -source ./storage.go -destination=./mocks/mock_storage.go -package=mock_storage
 	$(MOCKGEN_BIN) mockgen -source ./moduleInterface.go -destination=./mocks/mock_module.go -package=mock_module
