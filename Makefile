@@ -50,5 +50,5 @@ generate-mockgen:
 .PHONY: .generate-mock
 generate-mock:
 	find . -name '*_mock.go' -delete
-	$(MOCKGEN_BIN) mockgen -source ./storage.go -destination=./mocks/mock_storage.go -package=mock_storage
-	$(MOCKGEN_BIN) mockgen -source ./moduleInterface.go -destination=./mocks/mock_module.go -package=mock_module
+	$(MOCKGEN_BIN) mockgen -source ./storage.go -destination=./mocks/storage_mock.go -package=storage_mock
+	$(MOCKGEN_BIN) mockgen -source ./moduleInterface.go -destination=./mocks/module_mock.go -package=module_mock

@@ -1,4 +1,4 @@
-//go:generate mockgen -source ./moduleInterface.go -destination=./mocks/mock_module.go -package=mock_module
+//go:generate mockgen -source ./moduleInterface.go -destination=./mocks/module_mock.go -package=module_mock
 
 package module
 

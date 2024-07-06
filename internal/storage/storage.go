@@ -1,4 +1,4 @@
-//go:generate mockgen -source ./storage.go -destination=./mocks/mock_storage.go -package=mock_storage
+//go:generate mockgen -source ./storage.go -destination=./mocks/storage_mock.go -package=storage_mock
 
 package storage
 
