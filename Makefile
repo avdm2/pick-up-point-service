@@ -1,6 +1,5 @@
-# Установим параметры подключения к базе данных для тестов
 ifeq ($(POSTGRES_SETUP_TEST),)
-	POSTGRES_SETUP_TEST := user=user password=password dbname=db host=localhost port=5432 sslmode=disable
+	POSTGRES_SETUP_TEST := "postgres://user:password@localhost:5432/db?sslmode=disable"
 endif
 
 MIGRATION_FOLDER=$(CURDIR)/migrations
@@ -22,11 +21,15 @@ compose-rm:
 
 .PHONY: migrate-up
 migrate-up:
-	./migration.sh up
+	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" up
 
 .PHONY: migrate-status
 migrate-status:
-	./migration.sh status
+	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" status
+
+.PHONY: migrate-down
+migrate-down:
+	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" down
 
 .PHONY: clean-db
 clean-db:
