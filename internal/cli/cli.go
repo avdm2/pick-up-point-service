@@ -39,21 +39,21 @@ type Deps struct {
 type CLI struct {
 	Deps
 	wg      sync.WaitGroup
-	tasks   chan string
-	workers int
+	Tasks   chan string
+	Workers int
 }
 
 func NewCLI(d Deps) *CLI {
 	return &CLI{
 		Deps:    d,
-		tasks:   make(chan string),
-		workers: 2,
+		Tasks:   make(chan string),
+		Workers: 2,
 	}
 }
 
 func (c *CLI) Run() error {
 
-	for i := 0; i < c.workers; i++ {
+	for i := 0; i < c.Workers; i++ {
 		c.wg.Add(1)
 		fmt.Printf("[* w%d *] Запуск воркера\n", i)
 		go c.worker(i)
@@ -72,17 +72,17 @@ func (c *CLI) Run() error {
 			break
 		}
 
-		c.tasks <- cmd
+		c.Tasks <- cmd
 	}
 
-	close(c.tasks)
+	close(c.Tasks)
 	c.wg.Wait()
 	return nil
 }
 
 func (c *CLI) worker(id int) {
 	defer c.wg.Done()
-	for cmd := range c.tasks {
+	for cmd := range c.Tasks {
 		fmt.Printf("[* w%d *] Обработка команды [%s]\n", id, cmd)
 		if errCmd := c.handleCommand(cmd); errCmd != nil {
 			fmt.Printf("cli.Run error: %s\n", errCmd)

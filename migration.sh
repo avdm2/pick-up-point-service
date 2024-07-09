@@ -1,2 +1,2 @@
-goose -dir ./migrations postgres "postgres://postgres:admin@localhost:5432/ozon_hw3?sslmode=disable" status
-goose -dir ./migrations postgres "postgres://postgres:admin@localhost:5432/ozon_hw3?sslmode=disable" up
+goose -dir ./migrations postgres "postgres://user:password@localhost:5432/db?sslmode=disable" status
+goose -dir ./migrations postgres "postgres://user:password@localhost:5432/db?sslmode=disable" up

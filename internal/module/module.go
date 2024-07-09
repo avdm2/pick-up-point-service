@@ -10,15 +10,15 @@ import (
 )
 
 var (
-	errWrongExpiration = errors.New("wrong expiration date")
-	errReturn          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
-	errRefund          = errors.New("can not refund this order. make sure it is yours, you received it and refund time (2 days) has not passed")
-	errPagination      = errors.New("page is out of range")
+	ErrWrongExpiration = errors.New("wrong expiration date")
+	ErrReturn          = errors.New("can not delete this order. this order might be already received or expiration date is not passed")
+	ErrRefund          = errors.New("can not refund this order. make sure it is yours, you received it and refund time (2 days) has not passed")
+	ErrPagination      = errors.New("page is out of range")
 	errReceive         = errors.New("can not receive other orders. one of them probably has not belong to customer or already received or expiration time has passed")
 )
 
 type Deps struct {
-	Storage *storage.Storage
+	Storage storage.Storage
 }
 
 type Module struct {
@@ -31,7 +31,7 @@ func NewModule(d Deps) *Module {
 
 func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
 	if expirationDate.Before(time.Now()) {
-		return errWrongExpiration
+		return ErrWrongExpiration
 	}
 
 	p, errParse := packaging.ParsePackage(pack)
@@ -47,7 +47,6 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 	if errGetOrder != nil {
 		return fmt.Errorf("module.AddOrder error: %w", errGetOrder)
 	}
-
 	if fromDb.OrderID == orderId {
 		return fmt.Errorf("module.AddOrder error: %w", storage.ErrOrderExists)
 	}
@@ -77,7 +76,7 @@ func (m *Module) ReturnOrder(id models.ID) error {
 		return m.Storage.ReturnOrder(id)
 	}
 
-	return fmt.Errorf("storage.ReturnOrder error: %w", errReturn)
+	return fmt.Errorf("storage.ReturnOrder error: %w", ErrReturn)
 }
 
 func (m *Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {
@@ -130,7 +129,7 @@ func (m *Module) RefundOrder(customerId models.ID, orderId models.ID) error {
 	}
 
 	if order.CustomerID != customerId || !order.ReceivedByCustomer || order.Refunded || order.ReceivedTime.Add(time.Hour*24*2).Before(time.Now()) {
-		return fmt.Errorf("storage.CreateRefund error: %w", errRefund)
+		return fmt.Errorf("storage.CreateRefund error: %w", ErrRefund)
 	}
 
 	order.Refunded = true
@@ -151,7 +150,7 @@ func (m *Module) GetRefunds(page int, limit int) ([]models.Order, error) {
 	end := start + limit
 
 	if start > len(refunds) {
-		return nil, fmt.Errorf("storage.GetRefunds error: %w", errPagination)
+		return nil, fmt.Errorf("storage.GetRefunds error: %w", ErrPagination)
 	}
 
 	if end > len(refunds) {
