@@ -27,10 +27,6 @@ migrate-up:
 migrate-status:
 	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" status
 
-.PHONY: migrate-down
-migrate-down:
-	goose -dir "$(MIGRATION_FOLDER)" postgres "$(POSTGRES_SETUP_TEST)" down
-
 .PHONY: clean-db
 clean-db:
 	psql "$(POSTGRES_SETUP_TEST)" -c "TRUNCATE TABLE orders CASCADE;"
@@ -39,6 +35,11 @@ clean-db:
 test:
 	$(info running tests...)
 	go test ./...
+
+.PHONY: integration-tests
+integration-tests:
+	$(info running integration tests...)
+	go test -tags=integration ./...
 
 .PHONY: .generate-mockgen-deps
 .generate-mockgen-deps:

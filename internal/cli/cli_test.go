@@ -22,7 +22,7 @@ func TestCLI_AddOrder(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := NewCLI(Deps{Module: mockModule})
 
-	t.Run("[OK] cli.AddOrder", func(t *testing.T) {
+	t.Run("Успешное добавление заказа", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "100"
@@ -38,7 +38,7 @@ func TestCLI_AddOrder(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] cli.AddOrder", func(t *testing.T) {
+	t.Run("Попытка добавить заказ с существующим ID", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "1"
@@ -63,7 +63,7 @@ func TestCLI_ReturnOrder(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := CLI{Deps: Deps{Module: mockModule}}
 
-	t.Run("[OK] cli.ReturnOrder", func(t *testing.T) {
+	t.Run("Успешный возврат товара курьеру", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "1"
@@ -74,7 +74,7 @@ func TestCLI_ReturnOrder(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] cli.ReturnOrder", func(t *testing.T) {
+	t.Run("Попытка вернуть курьеру ранее забранный заказ", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "1"
@@ -95,7 +95,7 @@ func TestCLI_ReceiveOrder(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := CLI{Deps: Deps{Module: mockModule}}
 
-	t.Run("[OK] cli.ReceiveOrder", func(t *testing.T) {
+	t.Run("Успешное получение заказа", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "100"
@@ -133,7 +133,7 @@ func TestCLI_GetOrders(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := CLI{Deps: Deps{Module: mockModule}}
 
-	t.Run("[OK] cli.GetOrders", func(t *testing.T) {
+	t.Run("Успешное получение списка заказов", func(t *testing.T) {
 		t.Parallel()
 
 		customerID := "1"
@@ -156,7 +156,7 @@ func TestCLI_CreateRefund(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := CLI{Deps: Deps{Module: mockModule}}
 
-	t.Run("[OK] cli.CreateRefund", func(t *testing.T) {
+	t.Run("Успешный возврат товара", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "1"
@@ -168,7 +168,7 @@ func TestCLI_CreateRefund(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] cli.CreateRefund", func(t *testing.T) {
+	t.Run("Попытка вернуть ранее возвращенный товар", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := "1"
@@ -190,7 +190,7 @@ func TestCLI_GetRefunds(t *testing.T) {
 	mockModule := mockmodule.NewMockModuleInterface(ctrl)
 	c := CLI{Deps: Deps{Module: mockModule}}
 
-	t.Run("[OK] cli.GetRefunds", func(t *testing.T) {
+	t.Run("Успешное получение списка возвратов", func(t *testing.T) {
 		t.Parallel()
 
 		page := "0"

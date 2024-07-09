@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package storage
 
 import (
@@ -48,7 +51,6 @@ func setupDB(t *testing.T, connURL string) {
 	db, err := NewStorage(connURL)
 	require.NoError(t, err)
 
-	// Add initial data for tests that need it
 	initialOrder := models.Order{
 		OrderID:        models.ID(1),
 		CustomerID:     models.ID(1),
@@ -63,7 +65,7 @@ func setupDB(t *testing.T, connURL string) {
 }
 
 func TestPostgresDB_AddOrder(t *testing.T) {
-	t.Run("[OK] AddOrder", func(t *testing.T) {
+	t.Run("Успешное добавление заказа в таблицу БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -89,7 +91,7 @@ func TestPostgresDB_AddOrder(t *testing.T) {
 }
 
 func TestPostgresDB_GetOrder(t *testing.T) {
-	t.Run("[OK] GetOrder", func(t *testing.T) {
+	t.Run("Успешное получение конкретного заказа из таблицы БД по ID", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -107,7 +109,7 @@ func TestPostgresDB_GetOrder(t *testing.T) {
 }
 
 func TestPostgresDB_GetCustomersOrders(t *testing.T) {
-	t.Run("[OK] GetCustomersOrders", func(t *testing.T) {
+	t.Run("Успешное получение заказов пользователя из таблицы БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -125,7 +127,7 @@ func TestPostgresDB_GetCustomersOrders(t *testing.T) {
 }
 
 func TestPostgresDB_GetRefunds(t *testing.T) {
-	t.Run("[OK] GetRefunds", func(t *testing.T) {
+	t.Run("Успешное получение списка возвратов из таблицы БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -145,7 +147,7 @@ func TestPostgresDB_GetRefunds(t *testing.T) {
 }
 
 func TestPostgresDB_ChangeOrder(t *testing.T) {
-	t.Run("[OK] ChangeOrder", func(t *testing.T) {
+	t.Run("Успешное изменение параметров заказа в таблице БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -171,7 +173,7 @@ func TestPostgresDB_ChangeOrder(t *testing.T) {
 }
 
 func TestPostgresDB_ReceiveOrder(t *testing.T) {
-	t.Run("[OK] ReceiveOrder", func(t *testing.T) {
+	t.Run("Успешное получение заказа из таблицы в БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)
@@ -193,7 +195,7 @@ func TestPostgresDB_ReceiveOrder(t *testing.T) {
 }
 
 func TestPostgresDB_ReturnOrder(t *testing.T) {
-	t.Run("[OK] ReturnOrder", func(t *testing.T) {
+	t.Run("Успешный возврат заказа курьеру в таблице БД", func(t *testing.T) {
 		t.Parallel()
 
 		connURL, err := getConnUrl(path)

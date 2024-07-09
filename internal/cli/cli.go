@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"homework-1/internal/infrastructure/kafka"
+	"homework-1/internal/infrastructure/messaging/messages"
 	"homework-1/internal/models"
 	"os"
 	"strconv"
@@ -33,7 +35,9 @@ type Module interface {
 }
 
 type Deps struct {
-	Module Module
+	Module   Module
+	Sender   *kafka.KafkaSender
+	Receiver *kafka.KafkaReceiver
 }
 
 type CLI struct {
@@ -52,6 +56,13 @@ func NewCLI(d Deps) *CLI {
 }
 
 func (c *CLI) Run() error {
+
+	if c.Receiver != nil {
+		errSubscribe := c.Receiver.Subscribe()
+		if errSubscribe != nil {
+			return fmt.Errorf("cli.Run error: %w", errSubscribe)
+		}
+	}
 
 	for i := 0; i < c.Workers; i++ {
 		c.wg.Add(1)
@@ -84,11 +95,28 @@ func (c *CLI) worker(id int) {
 	defer c.wg.Done()
 	for cmd := range c.Tasks {
 		fmt.Printf("[* w%d *] Обработка команды [%s]\n", id, cmd)
+		c.produceMessage(id, cmd)
+
 		if errCmd := c.handleCommand(cmd); errCmd != nil {
 			fmt.Printf("cli.Run error: %s\n", errCmd)
 		}
 		fmt.Printf("[* w%d *] Команда [%s] обработана\n", id, cmd)
 	}
+}
+
+func (c *CLI) produceMessage(id int, cmd string) {
+	cliMessage := &messages.CLIMessage{
+		Time:       time.Now(),
+		Command:    cmd,
+		MethodName: strings.Split(cmd, " ")[0],
+	}
+
+	errSending := c.Sender.SendMessage(cliMessage)
+	if errSending != nil {
+		fmt.Printf("cli.produceMessage error: %s\n", errSending)
+	}
+
+	fmt.Printf("[* w%d *] В Kafka отправилось сообщение\n", id)
 }
 
 func (c *CLI) handleCommand(command string) error {
