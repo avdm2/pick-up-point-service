@@ -21,7 +21,7 @@ func TestModule_AddOrder(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.AddOrder", func(t *testing.T) {
+	t.Run("Успешное добавление заказа", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(100)
@@ -38,7 +38,7 @@ func TestModule_AddOrder(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] module.AddOrder", func(t *testing.T) {
+	t.Run("Попытка добавить заказ с сущетсвующим ID", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(1)
@@ -68,7 +68,7 @@ func TestModule_ReturnOrder(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.ReturnOrder", func(t *testing.T) {
+	t.Run("Успешный возврат заказа курьеру", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(1)
@@ -85,7 +85,7 @@ func TestModule_ReturnOrder(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] module.ReturnOrder", func(t *testing.T) {
+	t.Run("Попытка вернуть курьеру заказ, который был возвращен ранее", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(1)
@@ -110,7 +110,7 @@ func TestModule_ReceiveOrders(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.ReceiveOrders", func(t *testing.T) {
+	t.Run("Успешная попытка получить заказ", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(100)
@@ -152,7 +152,7 @@ func TestModule_GetOrders(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.GetOrders", func(t *testing.T) {
+	t.Run("Успешная попытка получить список заказов покупателя", func(t *testing.T) {
 		t.Parallel()
 
 		customerID := models.ID(1)
@@ -176,7 +176,7 @@ func TestModule_RefundOrder(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.RefundOrder", func(t *testing.T) {
+	t.Run("Успешный возврат заказа", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(1)
@@ -196,7 +196,7 @@ func TestModule_RefundOrder(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("[X] module.RefundOrder", func(t *testing.T) {
+	t.Run("Попытка вернуть ранее возвращенный заказ", func(t *testing.T) {
 		t.Parallel()
 
 		orderID := models.ID(1)
@@ -224,7 +224,7 @@ func TestModule_GetRefunds(t *testing.T) {
 	mockStorage := mockstorage.NewMockStorage(ctrl)
 	module := NewModule(Deps{Storage: mockStorage})
 
-	t.Run("[OK] module.GetRefunds", func(t *testing.T) {
+	t.Run("Успешное получение списка возвратов", func(t *testing.T) {
 		t.Parallel()
 
 		page := 0

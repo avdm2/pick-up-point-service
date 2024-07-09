@@ -36,6 +36,11 @@ test:
 	$(info running tests...)
 	go test ./...
 
+.PHONY: integration-tests
+integration-tests:
+	$(info running integration tests...)
+	go test -tags=integration ./...
+
 .PHONY: .generate-mockgen-deps
 .generate-mockgen-deps:
 ifeq ($(wildcard $(MOCKGEN_BIN)),)
