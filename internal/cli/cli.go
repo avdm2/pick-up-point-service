@@ -7,6 +7,7 @@ import (
 	"homework-1/internal/infrastructure/kafka"
 	"homework-1/internal/infrastructure/messaging/messages"
 	"homework-1/internal/models"
+	"homework-1/internal/module"
 	"os"
 	"strconv"
 	"strings"
@@ -25,17 +26,8 @@ var (
 	errNegativeCost       = errors.New("cost can not be negative")
 )
 
-type Module interface {
-	AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error
-	ReturnOrder(id models.ID) error
-	ReceiveOrders(ordersId []models.ID) ([]models.Order, error)
-	GetOrders(customerId models.ID, n int) ([]models.Order, error)
-	RefundOrder(customerId models.ID, orderId models.ID) error
-	GetRefunds(page int, limit int) ([]models.Order, error)
-}
-
 type Deps struct {
-	Module   Module
+	Module   module.ModuleInterface
 	Sender   *kafka.KafkaSender
 	Receiver *kafka.KafkaReceiver
 }
@@ -47,6 +39,7 @@ type CLI struct {
 	Workers int
 }
 
+// Deprecated
 func NewCLI(d Deps) *CLI {
 	return &CLI{
 		Deps:    d,
@@ -55,6 +48,7 @@ func NewCLI(d Deps) *CLI {
 	}
 }
 
+// Deprecated
 func (c *CLI) Run() error {
 
 	if c.Receiver != nil {
@@ -245,7 +239,7 @@ func (c *CLI) returnOrder(args []string) error {
 	return nil
 }
 
-// receiveOrder --orders=1,2,3,4,5
+// receiveOrder --orders1=1,2,3,4,5
 func (c *CLI) receiveOrder(args []string) error {
 	if len(args) != 1 {
 		return errIncorrectArgAmount

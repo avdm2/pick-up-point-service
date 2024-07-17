@@ -6,6 +6,8 @@ MIGRATION_FOLDER=$(CURDIR)/migrations
 LOCAL_BIN=$(GOPATH)/bin
 MOCKGEN_TAG=1.6.0
 
+ORDERS_PROTO_PATH=api/proto/orders_grpc/v1
+
 .PHONY: compose-rs
 compose-rs:
 	make compose-rm
@@ -56,3 +58,17 @@ generate-mock:
 	find . -name '*_mock.go' -delete
 	$(MOCKGEN_BIN) mockgen -source ./storage.go -destination=./mocks/storage_mock.go -package=storage_mock
 	$(MOCKGEN_BIN) mockgen -source ./moduleInterface.go -destination=./mocks/module_mock.go -package=module_mock
+
+.PHONY: .bin-deps
+.bin-deps:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+.PHONY: .generate-grpc-stubs
+generate-grpc-stubs: .bin-deps
+	mkdir -p ./pkg/$(ORDERS_PROTO_PATH)
+
+	protoc -I ./api/proto \
+		--go_out=./pkg/$(ORDERS_PROTO_PATH) --go_opt=paths=source_relative \
+		--go-grpc_out=./pkg/$(ORDERS_PROTO_PATH) --go-grpc_opt=paths=source_relative \
+		$(ORDERS_PROTO_PATH)/orders.proto

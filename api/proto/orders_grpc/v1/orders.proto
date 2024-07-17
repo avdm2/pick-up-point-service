@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package orders_grpc;
+
+option go_package = "pkg/proto/orders_grpc/v1;orders_grpc";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service OrdersService {
+  rpc AddOrder (AddOrderRequest) returns (google.protobuf.Empty);
+  rpc ReturnOrder (ReturnOrderRequest) returns (google.protobuf.Empty);
+  rpc ReceiveOrders (ReceiveOrdersRequest) returns (ReceiveOrdersResponse);
+  rpc GetOrders (GetOrdersRequest) returns (GetOrdersResponse);
+  rpc CreateRefund (CreateRefundRequest) returns (google.protobuf.Empty);
+  rpc GetRefunds (GetRefundsRequest) returns (GetRefundsResponse);
+}
+
+message AddOrderRequest {
+  int64 order_id = 1;
+  int64 customer_id = 2;
+  string expiration_time = 3;
+  string package_type = 4;
+  double weight = 5;
+  double cost = 6;
+}
+
+message ReturnOrderRequest {
+  int64 order_id = 1;
+}
+
+message ReceiveOrdersRequest {
+  repeated int64 order_ids = 1;
+}
+
+message ReceiveOrdersResponse {
+  repeated Order orders = 1;
+}
+
+message GetOrdersRequest {
+  int64 customer_id = 1;
+  int32 n = 2;
+}
+
+message GetOrdersResponse {
+  repeated Order orders = 1;
+}
+
+message CreateRefundRequest {
+  int64 order_id = 1;
+  int64 customer_id = 2;
+}
+
+message GetRefundsRequest {
+  int32 page = 1;
+  int32 limit = 2;
+}
+
+message GetRefundsResponse {
+  repeated Order refunds = 1;
+}
+
+message Order {
+  int64 order_id = 1;
+  int64 customer_id = 2;
+  google.protobuf.Timestamp expiration_date = 3;
+  string package_type = 4;
+  double weight = 5;
+  double cost = 6;
+}
