@@ -36,11 +36,7 @@ func main() {
 		Storage: s,
 	})
 
-	redis := cache.MustNew(ctx, cfg.RedisConfig.Url, cfg.RedisConfig.Password, cfg.RedisConfig.DB, time.Duration(cfg.RedisConfig.TTL)*time.Second)
-	ordersService := &service.OrderService{
-		Module: ordersModule,
-		Redis:  redis,
-	}
+	orderService := initOrderService(ctx, cfg, ordersModule)
 
 	tracing.MustSetup(ctx, "orders-service")
 
@@ -55,21 +51,33 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
-		if err != nil {
-			log.Fatalf("failed to listen: %v", err)
-		}
-
-		grpcServer := grpc.NewServer()
-		orders_grpc.RegisterOrdersServiceServer(grpcServer, ordersService)
-
-		if err = grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-		}
+		runGrpc(orderService)
 	}()
 
 	wg.Wait()
+}
+
+func initOrderService(ctx context.Context, cfg *config.Config, ordersModule *module.Module) *service.OrderService {
+	redis := cache.MustNew(ctx, cfg.RedisConfig.Url, cfg.RedisConfig.Password, cfg.RedisConfig.DB, time.Duration(cfg.RedisConfig.TTL)*time.Second)
+	ordersService := &service.OrderService{
+		Module: ordersModule,
+		Redis:  redis,
+	}
+	return ordersService
+}
+
+func runGrpc(ordersService *service.OrderService) {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	grpcServer := grpc.NewServer()
+	orders_grpc.RegisterOrdersServiceServer(grpcServer, ordersService)
+
+	if err = grpcServer.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }
 
 func getConfig() *config.Config {

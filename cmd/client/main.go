@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"homework-1/internal/utils"
 	"homework-1/pkg/api/proto/orders_grpc/v1/orders_grpc/v1"
@@ -31,8 +30,10 @@ func main() {
 
 	ctx := context.Background()
 
-	ctx = metadata.AppendToOutgoingContext(ctx, "x-my-header", "123")
+	runClient(ctx, client)
+}
 
+func runClient(ctx context.Context, client orders_grpc.OrdersServiceClient) {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Println("[>>] Введите команду:")
