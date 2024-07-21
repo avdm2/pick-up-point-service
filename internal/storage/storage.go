@@ -11,5 +11,5 @@ type Storage interface {
 	GetRefunds() ([]models.Order, error)
 	ChangeOrder(order models.Order) error
 	ReceiveOrder(orderId models.ID) (models.Order, error)
-	ReturnOrder(orderId models.ID) error
+	ReturnOrder(orderId models.ID) (models.Order, error)
 }

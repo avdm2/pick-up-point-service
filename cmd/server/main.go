@@ -3,16 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc"
+	service "homework-1/internal/api"
+	"homework-1/internal/cache"
+	"homework-1/internal/config"
+	"homework-1/internal/http"
+	"homework-1/internal/module"
+	"homework-1/internal/storage"
+	"homework-1/internal/tracing"
 	"homework-1/pkg/api/proto/orders_grpc/v1/orders_grpc/v1"
 	"log"
 	"net"
 	"os"
-
-	"google.golang.org/grpc"
-	service "homework-1/internal/api"
-	"homework-1/internal/config"
-	"homework-1/internal/module"
-	"homework-1/internal/storage"
+	"sync"
+	"time"
 )
 
 const (
@@ -22,8 +26,7 @@ const (
 )
 
 func main() {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	cfg := getConfig()
@@ -33,21 +36,40 @@ func main() {
 		Storage: s,
 	})
 
+	redis := cache.MustNew(ctx, cfg.RedisConfig.Url, cfg.RedisConfig.Password, cfg.RedisConfig.DB, time.Duration(cfg.RedisConfig.TTL)*time.Second)
 	ordersService := &service.OrderService{
 		Module: ordersModule,
+		Redis:  redis,
 	}
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
+	tracing.MustSetup(ctx, "orders-service")
 
-	grpcServer := grpc.NewServer()
-	orders_grpc.RegisterOrdersServiceServer(grpcServer, ordersService)
+	var wg sync.WaitGroup
 
-	if err = grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		http.MustRun(ctx, 5*time.Second, fmt.Sprintf(":%d", cfg.HttpConfig.Port))
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+		if err != nil {
+			log.Fatalf("failed to listen: %v", err)
+		}
+
+		grpcServer := grpc.NewServer()
+		orders_grpc.RegisterOrdersServiceServer(grpcServer, ordersService)
+
+		if err = grpcServer.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	wg.Wait()
 }
 
 func getConfig() *config.Config {

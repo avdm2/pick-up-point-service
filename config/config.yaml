@@ -12,3 +12,12 @@ kafka:
         - "localhost:9093"
     topic: "orders"
     console-printing: true
+
+redis:
+    url: localhost:6379
+    db: 0
+    password: admin
+    ttl-seconds: 60000000000
+
+http:
+    port: 8099

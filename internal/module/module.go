@@ -29,8 +29,8 @@ func NewModule(d Deps) *Module {
 	return &Module{Deps: d}
 }
 
-func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
-	if expirationDate.Before(time.Now()) {
+func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationTime time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
+	if expirationTime.Before(time.Now()) {
 		return ErrWrongExpiration
 	}
 
@@ -54,7 +54,7 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 	order := models.Order{
 		OrderID:            orderId,
 		CustomerID:         customerId,
-		ExpirationTime:     expirationDate,
+		ExpirationTime:     expirationTime,
 		ReceivedTime:       time.Time{},
 		ReceivedByCustomer: false,
 		Refunded:           false,
@@ -63,20 +63,21 @@ func (m *Module) AddOrder(orderId models.ID, customerId models.ID, expirationDat
 		Cost:               cost,
 		PackageCost:        p.GetCost(),
 	}
+
 	return m.Storage.AddOrder(order)
 }
 
-func (m *Module) ReturnOrder(id models.ID) error {
+func (m *Module) ReturnOrder(id models.ID) (models.Order, error) {
 	order, errGet := m.Storage.GetOrder(id)
 	if errGet != nil {
-		return fmt.Errorf("storage.ReturnOrder error: %w", errGet)
+		return models.Order{}, fmt.Errorf("storage.ReturnOrder error: %w", errGet)
 	}
 
 	if order.ReceivedByCustomer && order.ExpirationTime.Before(time.Now()) {
 		return m.Storage.ReturnOrder(id)
 	}
 
-	return fmt.Errorf("storage.ReturnOrder error: %w", ErrReturn)
+	return models.Order{}, fmt.Errorf("storage.ReturnOrder error: %w", ErrReturn)
 }
 
 func (m *Module) ReceiveOrders(ordersId []models.ID) ([]models.Order, error) {

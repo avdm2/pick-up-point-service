@@ -63,8 +63,11 @@ message GetRefundsResponse {
 message Order {
   int64 order_id = 1;
   int64 customer_id = 2;
-  google.protobuf.Timestamp expiration_date = 3;
-  string package_type = 4;
-  double weight = 5;
-  double cost = 6;
+  google.protobuf.Timestamp expiration_time = 3;
+  bool received = 4;
+  bool refunded = 5;
+  string package_type = 6;
+  double weight = 7;
+  double cost = 8;
+  double pack_cost = 9;
 }

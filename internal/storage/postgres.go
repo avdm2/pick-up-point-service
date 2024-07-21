@@ -254,23 +254,36 @@ func (s *PostgresDB) ReceiveOrder(orderId models.ID) (models.Order, error) {
 	return order, nil
 }
 
-func (s *PostgresDB) ReturnOrder(orderId models.ID) error {
+func (s *PostgresDB) ReturnOrder(orderId models.ID) (models.Order, error) {
 	sql, args, errSql := sq.
 		Delete(orderTable).
 		Where(sq.Eq{"order_id": orderId}).
 		PlaceholderFormat(sq.Dollar).
 		ToSql()
 	if errSql != nil {
-		return fmt.Errorf("storage.ReturnOrder error: %w", errSql)
+		return models.Order{}, fmt.Errorf("storage.ReturnOrder error: %w", errSql)
 	}
 
-	_, errExec := s.db.Exec(context.Background(), sql, args...)
-	if errExec != nil {
-		if errors.Is(errExec, pgx.ErrNoRows) {
-			return fmt.Errorf("storage.ReceiveOrder error: %w", ErrOrderNotFound)
+	rows, errQuery := s.db.Query(context.Background(), sql, args...)
+	if errQuery != nil {
+		if errors.Is(errQuery, pgx.ErrNoRows) {
+			return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", ErrOrderNotFound)
 		}
-		return fmt.Errorf("storage.ReceiveOrder error: %w", errExec)
+		return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errQuery)
+	}
+	defer rows.Close()
+
+	var order models.Order
+	for rows.Next() {
+		var ordRecord schema.OrderRecord
+		if errScan := rows.Scan(&ordRecord.OrderID, &ordRecord.CustomerID,
+			&ordRecord.ExpirationTime, &ordRecord.ReceivedTime,
+			&ordRecord.ReceivedByCustomer, &ordRecord.Refunded,
+			&ordRecord.Package, &ordRecord.Weight, &ordRecord.Cost, &ordRecord.PackageCost); errScan != nil {
+			return models.Order{}, fmt.Errorf("storage.ReceiveOrder error: %w", errScan)
+		}
+		order = ordRecord.ToDomain()
 	}
 
-	return nil
+	return order, nil
 }

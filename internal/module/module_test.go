@@ -26,7 +26,7 @@ func TestModule_AddOrder(t *testing.T) {
 
 		orderID := models.ID(100)
 		customerID := models.ID(100)
-		expirationDate := time.Now().Add(time.Hour)
+		expirationTime := time.Now().Add(time.Hour)
 		pack := models.PackageType("box")
 		weight := models.Kilo(10)
 		cost := models.Rub(100)
@@ -34,7 +34,7 @@ func TestModule_AddOrder(t *testing.T) {
 		mockStorage.EXPECT().GetOrder(orderID).Return(models.Order{}, nil)
 		mockStorage.EXPECT().AddOrder(gomock.Any()).Return(nil)
 
-		err := module.AddOrder(orderID, customerID, expirationDate, pack, weight, cost)
+		err := module.AddOrder(orderID, customerID, expirationTime, pack, weight, cost)
 		require.NoError(t, err)
 	})
 
@@ -43,7 +43,7 @@ func TestModule_AddOrder(t *testing.T) {
 
 		orderID := models.ID(1)
 		customerID := models.ID(1)
-		expirationDate := time.Now().Add(time.Hour)
+		expirationTime := time.Now().Add(time.Hour)
 		pack := models.PackageType("box")
 		weight := models.Kilo(10)
 		cost := models.Rub(100)
@@ -55,7 +55,7 @@ func TestModule_AddOrder(t *testing.T) {
 
 		mockStorage.EXPECT().GetOrder(orderID).Return(existingOrder, nil)
 
-		err := module.AddOrder(orderID, customerID, expirationDate, pack, weight, cost)
+		err := module.AddOrder(orderID, customerID, expirationTime, pack, weight, cost)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), storage.ErrOrderExists.Error())
 	})
@@ -81,8 +81,9 @@ func TestModule_ReturnOrder(t *testing.T) {
 		mockStorage.EXPECT().GetOrder(orderID).Return(order, nil)
 		mockStorage.EXPECT().ReturnOrder(orderID).Return(nil)
 
-		err := module.ReturnOrder(orderID)
+		order, err := module.ReturnOrder(orderID)
 		require.NoError(t, err)
+		assert.Equal(t, orderID, order.OrderID)
 	})
 
 	t.Run("Попытка вернуть курьеру заказ, который был возвращен ранее", func(t *testing.T) {
@@ -97,7 +98,7 @@ func TestModule_ReturnOrder(t *testing.T) {
 
 		mockStorage.EXPECT().GetOrder(orderID).Return(order, nil)
 
-		err := module.ReturnOrder(orderID)
+		_, err := module.ReturnOrder(orderID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), ErrReturn.Error())
 	})
@@ -115,7 +116,7 @@ func TestModule_ReceiveOrders(t *testing.T) {
 
 		orderID := models.ID(100)
 		customerID := models.ID(100)
-		expirationDate := time.Now().Add(24 * time.Hour)
+		expirationTime := time.Now().Add(24 * time.Hour)
 		pack := models.PackageType("box")
 		weight := models.Kilo(10)
 		cost := models.Rub(100)
@@ -124,7 +125,7 @@ func TestModule_ReceiveOrders(t *testing.T) {
 		order := models.Order{
 			OrderID:            orderID,
 			CustomerID:         customerID,
-			ExpirationTime:     expirationDate,
+			ExpirationTime:     expirationTime,
 			ReceivedTime:       time.Time{},
 			ReceivedByCustomer: false,
 			Refunded:           false,

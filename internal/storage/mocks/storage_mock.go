@@ -123,11 +123,12 @@ func (mr *MockStorageMockRecorder) ReceiveOrder(orderId interface{}) *gomock.Cal
 }
 
 // ReturnOrder mocks base method.
-func (m *MockStorage) ReturnOrder(orderId models.ID) error {
+func (m *MockStorage) ReturnOrder(orderId models.ID) (models.Order, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReturnOrder", orderId)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ReturnOrder indicates an expected call of ReturnOrder.

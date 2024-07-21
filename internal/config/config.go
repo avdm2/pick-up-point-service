@@ -9,6 +9,8 @@ import (
 type Config struct {
 	DatabaseConfig `yaml:"database"`
 	KafkaConfig    `yaml:"kafka"`
+	RedisConfig    `yaml:"redis"`
+	HttpConfig     `yaml:"http"`
 }
 
 type DatabaseConfig struct {
@@ -23,6 +25,17 @@ type KafkaConfig struct {
 	Brokers         []string `yaml:"brokers" env-default:"localhost:9091"`
 	Topic           string   `yaml:"topic" env-default:"orders"`
 	ConsolePrinting bool     `yaml:"console-printing" env-default:"false"`
+}
+
+type RedisConfig struct {
+	Url      string `yaml:"url" env-default:"localhost:6379"`
+	Password string `yaml:"password" env-default:"admin"`
+	TTL      int    `yaml:"ttl-seconds" env-default:"60"`
+	DB       int    `yaml:"db" env-default:"0"`
+}
+
+type HttpConfig struct {
+	Port int `yaml:"port" env-default:"8080"`
 }
 
 func LoadConfig(path string) (*Config, error) {

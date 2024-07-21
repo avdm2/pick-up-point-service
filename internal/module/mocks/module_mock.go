@@ -36,17 +36,17 @@ func (m *MockModuleInterface) EXPECT() *MockModuleInterfaceMockRecorder {
 }
 
 // AddOrder mocks base method.
-func (m *MockModuleInterface) AddOrder(orderId, customerId models.ID, expirationDate time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
+func (m *MockModuleInterface) AddOrder(orderId, customerId models.ID, expirationTime time.Time, pack models.PackageType, weight models.Kilo, cost models.Rub) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddOrder", orderId, customerId, expirationDate, pack, weight, cost)
+	ret := m.ctrl.Call(m, "AddOrder", orderId, customerId, expirationTime, pack, weight, cost)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // AddOrder indicates an expected call of AddOrder.
-func (mr *MockModuleInterfaceMockRecorder) AddOrder(orderId, customerId, expirationDate, pack, weight, cost interface{}) *gomock.Call {
+func (mr *MockModuleInterfaceMockRecorder) AddOrder(orderId, customerId, expirationTime, pack, weight, cost interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrder", reflect.TypeOf((*MockModuleInterface)(nil).AddOrder), orderId, customerId, expirationDate, pack, weight, cost)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrder", reflect.TypeOf((*MockModuleInterface)(nil).AddOrder), orderId, customerId, expirationTime, pack, weight, cost)
 }
 
 // GetOrders mocks base method.
@@ -109,11 +109,12 @@ func (mr *MockModuleInterfaceMockRecorder) RefundOrder(customerId, orderId inter
 }
 
 // ReturnOrder mocks base method.
-func (m *MockModuleInterface) ReturnOrder(id models.ID) error {
+func (m *MockModuleInterface) ReturnOrder(id models.ID) (models.Order, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ReturnOrder", id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(models.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ReturnOrder indicates an expected call of ReturnOrder.
