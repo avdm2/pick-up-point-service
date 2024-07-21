@@ -1,9 +1,9 @@
 database:
     host: localhost
     port: 5432
-    user: postgres
-    password: admin
-    name: ozon_hw3
+    user: user
+    password: password
+    name: db
 
 kafka:
     brokers:

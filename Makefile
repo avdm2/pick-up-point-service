@@ -80,7 +80,6 @@ run-prometheus:
 .PHONY: vendor-proto
 vendor-proto: vendor-proto/google/protobuf vendor-proto/google/api vendor-proto/protoc-gen-openapiv2/options vendor-proto/validate
 
-# Устанавливаем proto описания protoc-gen-openapiv2/options
 vendor-proto/protoc-gen-openapiv2/options:
 	git clone -b main --single-branch -n --depth=1 --filter=tree:0 \
  		https://github.com/grpc-ecosystem/grpc-gateway vendor.proto/grpc-ecosystem && \
@@ -91,8 +90,6 @@ vendor-proto/protoc-gen-openapiv2/options:
 	mv vendor.proto/grpc-ecosystem/protoc-gen-openapiv2/options vendor.proto/protoc-gen-openapiv2
 	rm -rf vendor.proto/grpc-ecosystem
 
-
-# Устанавливаем proto описания google/protobuf
 vendor-proto/google/protobuf:
 	git clone -b main --single-branch -n --depth=1 --filter=tree:0 \
 		https://github.com/protocolbuffers/protobuf vendor.proto/protobuf &&\
